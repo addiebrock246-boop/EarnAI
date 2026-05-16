@@ -2,13 +2,13 @@ name: EarnAI Daily Flight
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # हर 3 घंटे में चलेगा
-  workflow_dispatch:          # मैन्युअल ट्रिगर के लिए
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
 
 jobs:
   fly:
     runs-on: ubuntu-latest
-    timeout-minutes: 120      # 2 घंटे का समय, ज़रूरत से ज़्यादा
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repo
@@ -26,7 +26,6 @@ jobs:
 
       - name: Launch EarnAI 🚀
         env:
-          COINTIPLY_EMAIL: ${{ secrets.COINTIPLY_EMAIL }}
-          COINTIPLY_PASSWORD: ${{ secrets.COINTIPLY_PASSWORD }}
+          COINTIPLY_COOKIES: ${{ secrets.COINTIPLY_COOKIES }}
           WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
         run: python main.py
