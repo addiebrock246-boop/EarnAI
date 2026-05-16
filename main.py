@@ -1,62 +1,69 @@
 import os
 import time
-import requests
 from playwright.sync_api import sync_playwright
 
-WALLET = os.environ.get("WALLET_ADDRESS", "0x123...")
-HF_TOKEN = os.environ["HF_API_TOKEN"]
-API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+WALLET = os.environ.get("WALLET_ADDRESS", "0xYourRealWalletAddress")
 
-def ask_ai(prompt, max_retries=3):
-    # wait_for_model = True: API khud wait karegi model ready hone tak
-    payload = {
-        "inputs": prompt,
-        "parameters": {"max_length": 80, "temperature": 0.7},
-        "options": {"wait_for_model": True, "use_cache": True}
+# Ek simple faucet task (FreeBitco.in) — wallet address maangta hai
+FAUCET_TASKS = [
+    {
+        "name": "FreeBitco.in",
+        "url": "https://freebitco.in",
+        "wallet_selector": "#btcAddress",          # wallet input ka id
+        "claim_selector": "#claim_button",         # claim button ka id
+        "success_text": "BTC"                      # page mein aana chahiye
     }
-    for attempt in range(max_retries):
-        try:
-            # timeout 120 seconds set kiya, taki wait ke dauran connection na toote
-            response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
-            if response.status_code != 200:
-                print(f"⚠️ Status {response.status_code}: {response.text[:300]}")
-                time.sleep(20)
-                continue
-            result = response.json()
-            if isinstance(result, list) and len(result) > 0:
-                return result[0]["generated_text"]
-            elif isinstance(result, dict):
-                if "generated_text" in result:
-                    return result["generated_text"]
-                elif "error" in result:
-                    print(f"⏳ Model error: {result['error']}")
-                    time.sleep(20)
-                    continue
+]
+
+def try_claim_faucet(page, task):
+    print(f"⛏️ Trying: {task['name']}")
+    try:
+        page.goto(task["url"], timeout=30000)
+        page.wait_for_timeout(3000)  # load hone do
+
+        # Wallet address fill karo
+        wallet_field = page.query_selector(task["wallet_selector"])
+        if wallet_field:
+            wallet_field.fill(WALLET)
+            print(f"📝 Wallet filled: {WALLET[:10]}...")
+        else:
+            print("❌ Wallet input field nahi mila. Site structure change ho gayi.")
+            return False
+
+        # Claim button dabao
+        claim_btn = page.query_selector(task["claim_selector"])
+        if claim_btn:
+            claim_btn.click()
+            print("🖱️ Claim button click kiya")
+            page.wait_for_timeout(5000)
+
+            # Success check karo
+            if task["success_text"] in page.content():
+                print(f"✅ Claim successful! (Text '{task['success_text']}' found)")
+                return True
             else:
-                print(f"❓ Unexpected: {result}")
-                time.sleep(20)
-        except requests.exceptions.Timeout:
-            print("⌛ Request timeout, retrying...")
-            time.sleep(30)
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            time.sleep(20)
-    raise Exception("AI fail ho gaya, baad mein try karega")
+                print("⚠️ Claim button dabaya, lekin success confirm nahi hua (captcha ya error).")
+                return False
+        else:
+            print("❌ Claim button nahi mila.")
+            return False
+    except Exception as e:
+        print(f"❌ Error in {task['name']}: {e}")
+        return False
 
 def fly():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        print("🌍 Visiting Google...")
-        page.goto("https://www.google.com", timeout=30000)
-        title = page.title()
-        print(f"📄 Page title: {title}")
 
-        prompt = "Suggest one crypto earning task without KYC for today. Keep answer short."
-        suggestion = ask_ai(prompt)
-        print(f"🧠 AI suggestion: {suggestion}")
+        print("🌍 Starting EarnAI task execution...")
+        success = 0
+        for task in FAUCET_TASKS:
+            if try_claim_faucet(page, task):
+                success += 1
+            time.sleep(10)  # rate limit se bachne ke liye
 
+        print(f"🎯 Aaj {success}/{len(FAUCET_TASKS)} task attempt kiye.")
         browser.close()
 
 if __name__ == "__main__":
