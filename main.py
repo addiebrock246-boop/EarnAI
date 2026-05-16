@@ -4,9 +4,22 @@ import time
 import random
 from playwright.sync_api import sync_playwright
 
-# कुकीज़ GitHub Secret से लोड
+# ========== कुकीज़ GitHub Secret से लोड ==========
 COOKIES_JSON = os.environ["COINTIPLY_COOKIES"]
 cookies = json.loads(COOKIES_JSON)
+
+# ========== sameSite फ़िल्टर (Playwright के लिए) ==========
+for cookie in cookies:
+    if 'sameSite' in cookie:
+        # अगर "unspecified" या कोई और अवैध वैल्यू हो, तो "Lax" कर दो
+        if cookie['sameSite'].lower() not in ['strict', 'lax', 'none']:
+            cookie['sameSite'] = 'Lax'
+        else:
+            # सही capitalization करो (Lax, Strict, None)
+            cookie['sameSite'] = cookie['sameSite'].capitalize()
+    else:
+        # अगर sameSite है ही नहीं, तो डिफ़ॉल्ट "Lax" डाल दो
+        cookie['sameSite'] = 'Lax'
 
 def surf_ads(page):
     print("📡 सीधे सर्फ ऐड्स पेज पर जा रहे हैं (कुकीज़ से लॉगिन)...")
@@ -64,7 +77,7 @@ def fly():
 
         print("🔐 कुकीज़ सेट करके ऑटो-लॉगिन...")
         page.goto("https://cointiply.com", timeout=30000)
-        page.context.add_cookies(cookies)  # एक्सपोर्ट की हुई कुकीज़
+        page.context.add_cookies(cookies)  # अब sameSite सही है
         page.reload()
         page.wait_for_timeout(random.randint(3000, 5000))
 
