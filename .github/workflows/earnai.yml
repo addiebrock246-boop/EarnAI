@@ -2,8 +2,8 @@ name: EarnAI Daily Flight
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
-  workflow_dispatch:
+    - cron: '0 */3 * * *'   # हर 3 घंटे में
+  workflow_dispatch:          # मैन्युअल ट्रिगर
 
 jobs:
   fly:
@@ -23,9 +23,14 @@ jobs:
         run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
+          # 1. CloakBrowser का स्टील्थ ब्राउज़र इंस्टॉल करो
+          npm install cloakbrowser playwright-core
 
       - name: Launch EarnAI 🚀
-        run: python main.py
+        run: |
+          # 2. वर्चुअल डिस्प्ले इंस्टॉल और चलाओ
+          sudo apt-get update && sudo apt-get install -y xvfb
+          xvfb-run python main.py
         env:
           COINTIPLY_COOKIES: ${{ secrets.COINTIPLY_COOKIES }}
           WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
