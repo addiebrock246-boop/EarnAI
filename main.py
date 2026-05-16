@@ -7,12 +7,10 @@ EMAIL = os.environ["COINTIPLY_EMAIL"]
 PASSWORD = os.environ["COINTIPLY_PASSWORD"]
 
 def login(page):
-    """स्टेल्थ मोड में लॉगिन (बिना extra library)"""
     print("🔐 लॉगिन पेज पर जा रहे हैं...")
     page.goto("https://cointiply.com/login", timeout=30000)
-    page.wait_for_timeout(random.randint(3000, 5000))
+    page.wait_for_timeout(random.randint(4000, 6000))
 
-    # फ़ील्ड भरो (सही सेलेक्टर से)
     email_field = page.wait_for_selector(
         "input[name='email'], input[type='email']", timeout=10000
     )
@@ -23,18 +21,27 @@ def login(page):
     pass_field.fill(PASSWORD)
     print("📧 ईमेल/पासवर्ड भरे")
 
-    # लॉगिन बटन
-    login_btn = page.wait_for_selector(
-        "button:has-text('Login'), input[value='Login']", timeout=5000
-    )
-    login_btn.click()
-    print("🔘 लॉगिन बटन दबाया")
+    pass_field.press("Enter")
+    print("↩️ एंटर दबाया, इंतज़ार...")
+    page.wait_for_timeout(random.randint(5000, 8000))
 
-    # लॉगिन सफलता की जाँच
+    login_btn = page.query_selector(
+        "button:has-text('Login'), input[value='Login'], button[type='submit'], a:has-text('Login')"
+    )
+    if login_btn:
+        try:
+            login_btn.click()
+            print("🔘 लॉगिन बटन क्लिक किया (दूसरा तरीका)")
+            page.wait_for_timeout(random.randint(3000, 5000))
+        except:
+            print("⚠️ बटन क्लिक नहीं हो पाया, लेकिन एंटर ट्राई हो चुका")
+    else:
+        print("ℹ️ कोई भी लॉगिन बटन नहीं मिला, सिर्फ एंटर से कोशिश की")
+
     try:
         page.wait_for_selector(
             "a:has-text('Logout'), button:has-text('Logout'), .user-menu",
-            timeout=15000
+            timeout=20000
         )
         print("✅ लॉगिन सफल! (Logout दिखा)")
         return True
@@ -47,7 +54,6 @@ def surf_ads(page):
     page.goto("https://cointiply.com/surf-ads", timeout=30000)
     page.wait_for_timeout(random.randint(5000, 8000))
 
-    # स्टार्ट सर्फिंग बटन
     try:
         start_btn = page.wait_for_selector(
             "button:has-text('Start Surfing')", timeout=5000
@@ -71,7 +77,6 @@ def surf_ads(page):
             page.wait_for_timeout(wait_time)
             ads_done += 1
 
-            # अगला बटन
             try:
                 next_btn = page.wait_for_selector(
                     "button:has-text('Next'), a:has-text('Next')", timeout=4000
@@ -93,31 +98,25 @@ def surf_ads(page):
 
 def fly():
     with sync_playwright() as p:
-        # असली Chrome जैसी सेटिंग्स
         browser = p.chromium.launch(
             headless=True,
             args=[
-                "--disable-blink-features=AutomationControlled",  # ऑटोमेशन निशान छिपाओ
+                "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
             ]
         )
-        # इंसानों जैसा context
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             viewport={"width": 1366, "height": 768},
             locale="en-US",
         )
         page = context.new_page()
-
-        # वो जादुई स्क्रिप्ट जो webdriver फ़्लैग हटाती है
         page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
-            // और कुछ common automation checks
             window.chrome = { runtime: {} };
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
         """)
-        # साइट पर जाओ
         page.goto("https://cointiply.com", timeout=30000)
         page.wait_for_timeout(2000)
 
