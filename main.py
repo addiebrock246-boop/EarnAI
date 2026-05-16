@@ -1,59 +1,19 @@
 import os
+import json
 import time
 import random
 from playwright.sync_api import sync_playwright
 
-EMAIL = os.environ["COINTIPLY_EMAIL"]
-PASSWORD = os.environ["COINTIPLY_PASSWORD"]
-
-def login(page):
-    print("🔐 लॉगिन पेज पर जा रहे हैं...")
-    page.goto("https://cointiply.com/login", timeout=30000)
-    page.wait_for_timeout(random.randint(4000, 6000))
-
-    email_field = page.wait_for_selector(
-        "input[name='email'], input[type='email']", timeout=10000
-    )
-    pass_field = page.wait_for_selector(
-        "input[name='password'], input[type='password']", timeout=10000
-    )
-    email_field.fill(EMAIL)
-    pass_field.fill(PASSWORD)
-    print("📧 ईमेल/पासवर्ड भरे")
-
-    pass_field.press("Enter")
-    print("↩️ एंटर दबाया, इंतज़ार...")
-    page.wait_for_timeout(random.randint(5000, 8000))
-
-    login_btn = page.query_selector(
-        "button:has-text('Login'), input[value='Login'], button[type='submit'], a:has-text('Login')"
-    )
-    if login_btn:
-        try:
-            login_btn.click()
-            print("🔘 लॉगिन बटन क्लिक किया (दूसरा तरीका)")
-            page.wait_for_timeout(random.randint(3000, 5000))
-        except:
-            print("⚠️ बटन क्लिक नहीं हो पाया, लेकिन एंटर ट्राई हो चुका")
-    else:
-        print("ℹ️ कोई भी लॉगिन बटन नहीं मिला, सिर्फ एंटर से कोशिश की")
-
-    try:
-        page.wait_for_selector(
-            "a:has-text('Logout'), button:has-text('Logout'), .user-menu",
-            timeout=20000
-        )
-        print("✅ लॉगिन सफल! (Logout दिखा)")
-        return True
-    except:
-        print("❌ लॉगिन विफल – कैप्चा या गलत पासवर्ड")
-        return False
+# कुकीज़ GitHub Secret से लोड
+COOKIES_JSON = os.environ["COINTIPLY_COOKIES"]
+cookies = json.loads(COOKIES_JSON)
 
 def surf_ads(page):
-    print("📡 सर्फ ऐड्स पर जा रहे हैं...")
+    print("📡 सीधे सर्फ ऐड्स पेज पर जा रहे हैं (कुकीज़ से लॉगिन)...")
     page.goto("https://cointiply.com/surf-ads", timeout=30000)
     page.wait_for_timeout(random.randint(5000, 8000))
 
+    # स्टार्ट सर्फिंग बटन
     try:
         start_btn = page.wait_for_selector(
             "button:has-text('Start Surfing')", timeout=5000
@@ -98,33 +58,17 @@ def surf_ads(page):
 
 def fly():
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-            ]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1366, "height": 768},
-            locale="en-US",
-        )
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
         page = context.new_page()
-        page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', { get: () => false });
-            window.chrome = { runtime: {} };
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-        """)
+
+        print("🔐 कुकीज़ सेट करके ऑटो-लॉगिन...")
         page.goto("https://cointiply.com", timeout=30000)
-        page.wait_for_timeout(2000)
+        page.context.add_cookies(cookies)  # एक्सपोर्ट की हुई कुकीज़
+        page.reload()
+        page.wait_for_timeout(random.randint(3000, 5000))
 
-        if login(page):
-            surf_ads(page)
-        else:
-            print("❌ लॉगिन नहीं हो पाया, रन रद्द।")
-
+        surf_ads(page)
         browser.close()
 
 if __name__ == "__main__":
