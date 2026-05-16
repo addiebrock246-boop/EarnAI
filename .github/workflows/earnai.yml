@@ -1,0 +1,31 @@
+name: EarnAI Daily Flight
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'   # har 3 ghante
+  workflow_dispatch:          # manual run button
+
+jobs:
+  fly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120      # 2 ghante kaafi hai abhi
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tools
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Launch EarnAI 🚀
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
+        run: python main.py
