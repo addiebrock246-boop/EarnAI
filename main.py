@@ -29,7 +29,7 @@ def surf_ads(page):
     # स्टार्ट सर्फिंग बटन
     try:
         start_btn = page.wait_for_selector(
-            "button:has-text('Start Surfing')", timeout=5000
+            "button:has-text('Start Surfing')", timeout=10000  # 10 सेकंड तक इंतज़ार
         )
         start_btn.click()
         print("✅ स्टार्ट सर्फिंग क्लिक किया")
@@ -71,10 +71,31 @@ def surf_ads(page):
 
 def fly():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
+        # असली Chrome जैसी सेटिंग्स
+        browser = p.chromium.launch(
+            headless=False,  # अब visible mode में चलेगा
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+            ]
+        )
+        # इंसानों जैसा context
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1366, "height": 768},
+            locale="en-US",
+        )
         page = context.new_page()
 
+        # वो जादुई स्क्रिप्ट जो webdriver फ़्लैग हटाती है
+        page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            // और कुछ common automation checks
+            window.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        """)
+        
         print("🔐 कुकीज़ सेट करके ऑटो-लॉगिन...")
         page.goto("https://cointiply.com", timeout=30000)
         page.context.add_cookies(cookies)  # अब sameSite सही है
