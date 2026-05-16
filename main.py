@@ -1,18 +1,27 @@
 import os
+import time
 from google import genai
 from playwright.sync_api import sync_playwright
 
-# ==== CONFIG ====
 WALLET = os.environ.get("WALLET_ADDRESS", "0x123...")
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-def ask_ai(prompt):
-    """Google Gemini 2.0 Flash se free suggestion lo"""
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt
-    )
-    return response.text.strip()
+def ask_ai(prompt, retries=3):
+    for attempt in range(retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",  # 1.5 Flash, zyada free quota
+                contents=prompt
+            )
+            return response.text.strip()
+        except Exception as e:
+            if "RESOURCE_EXHAUSTED" in str(e):
+                wait = 10
+                print(f"⏳ Quota finish, {wait}s wait karta hoon...")
+                time.sleep(wait)
+            else:
+                raise e
+    raise Exception("AI call 3 baar fail ho gaya.")
 
 def fly():
     with sync_playwright() as p:
@@ -23,7 +32,6 @@ def fly():
         title = page.title()
         print(f"📄 Page title: {title}")
 
-        # AI Brain sochta hai
         prompt = (
             f"Current website title: '{title}'. "
             "Mere bot ka mission hai daily crypto tasks dhundhna bina KYC ke. "
