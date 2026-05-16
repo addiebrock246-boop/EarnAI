@@ -2,13 +2,13 @@ name: EarnAI Daily Flight
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # har 3 ghante
-  workflow_dispatch:          # manual run button
+    - cron: '0 */3 * * *'   # har 3 ghante chalega
+  workflow_dispatch:          # manual trigger button
 
 jobs:
   fly:
     runs-on: ubuntu-latest
-    timeout-minutes: 120      # 2 ghante kaafi hai abhi
+    timeout-minutes: 120      # 2 ghante, kaafi hai
 
     steps:
       - name: Checkout repo
@@ -26,6 +26,6 @@ jobs:
 
       - name: Launch EarnAI 🚀
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
           WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
         run: python main.py
