@@ -1,15 +1,17 @@
 import os
-import google.generativeai as genai
+from google import genai
 from playwright.sync_api import sync_playwright
 
 # ==== CONFIG ====
-WALLET = os.environ.get("WALLET_ADDRESS", "0xYourWalletHere")
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-1.5-flash")
+WALLET = os.environ.get("WALLET_ADDRESS", "0x123...")
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 def ask_ai(prompt):
-    """Gemini se sawaal karo, jawab lo"""
-    response = model.generate_content(prompt)
+    """Google Gemini 2.0 Flash se free suggestion lo"""
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt
+    )
     return response.text.strip()
 
 def fly():
@@ -30,7 +32,6 @@ def fly():
         suggestion = ask_ai(prompt)
         print(f"🧠 Gemini ka suggestion: {suggestion}")
 
-        # Kal hum yahan asli task complete karenge (faucet claim, quest join, etc.)
         browser.close()
 
 if __name__ == "__main__":
