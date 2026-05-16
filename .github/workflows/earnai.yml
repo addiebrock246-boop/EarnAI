@@ -2,8 +2,8 @@ name: EarnAI Daily Flight
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # हर 3 घंटे में
-  workflow_dispatch:          # मैन्युअल ट्रिगर
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
 
 jobs:
   fly:
@@ -25,9 +25,7 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Launch EarnAI 🚀
-        run: |
-          sudo apt-get update && sudo apt-get install -y xvfb
-          xvfb-run python main.py
+        run: python main.py
         env:
           COINTIPLY_COOKIES: ${{ secrets.COINTIPLY_COOKIES }}
           WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
