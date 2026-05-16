@@ -3,21 +3,19 @@ import json
 import time
 import random
 from playwright.sync_api import sync_playwright
+# CloakBrowser को इंपोर्ट नहीं करना है, बस लॉन्च करने का तरीका बदलना है।
 
-# ========== कुकीज़ लोड और sameSite फिक्स ==========
+# ========== कुकीज़ लोड और sameSite फिक्स (ये वही रहेगा) ==========
 COOKIES_JSON = os.environ["COINTIPLY_COOKIES"]
 cookies = json.loads(COOKIES_JSON)
 
 for cookie in cookies:
     if 'sameSite' in cookie:
-        # अगर "unspecified" या कोई और अवैध वैल्यू हो, तो "Lax" कर दो
         if cookie['sameSite'].lower() not in ['strict', 'lax', 'none']:
             cookie['sameSite'] = 'Lax'
         else:
-            # सही capitalization करो (Lax, Strict, None)
             cookie['sameSite'] = cookie['sameSite'].capitalize()
     else:
-        # अगर sameSite है ही नहीं, तो डिफ़ॉल्ट "Lax" डाल दो
         cookie['sameSite'] = 'Lax'
 
 def ptc_ads(context, page):
@@ -48,7 +46,6 @@ def ptc_ads(context, page):
             break
         try:
             href = btn.get_attribute("href")
-            # अगर href खाली या होमपेज है तो छोड़ो
             if not href or (href.startswith("https://cointiply.com") and "ptc" not in href):
                 continue
             print(f"👉 क्लिक: {href[:60]}")
@@ -66,9 +63,12 @@ def ptc_ads(context, page):
     return ads_clicked
 
 def fly():
+    # CloakBrowser का जादू यहाँ से शुरू होता है
     with sync_playwright() as p:
+        # 1. CloakBrowser का स्टील्थ क्रोमियम ब्राउज़र लॉन्च करो
         browser = p.chromium.launch(
-            headless=True,
+            channel="chrome",  # 'chrome' चैनल CloakBrowser के स्टील्थ ब्राउज़र को लॉन्च करेगा
+            headless=False,    # CloakBrowser के साथ headless=False ज़्यादा सुरक्षित है
             args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
         context = browser.new_context(
@@ -77,7 +77,6 @@ def fly():
             locale="en-US",
         )
         page = context.new_page()
-        page.add_init_script("Object.defineProperty(navigator, 'webdriver', { get: () => false })")
 
         print("🔐 कुकीज़ सेट करके लॉगिन...")
         page.goto("https://cointiply.com", timeout=30000)
