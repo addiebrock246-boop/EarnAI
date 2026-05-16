@@ -4,103 +4,91 @@ import time
 import random
 from playwright.sync_api import sync_playwright
 
-# ========== कुकीज़ GitHub Secret से लोड ==========
+# ========== कुकीज़ लोड और sameSite फिक्स ==========
 COOKIES_JSON = os.environ["COINTIPLY_COOKIES"]
 cookies = json.loads(COOKIES_JSON)
 
-# ========== sameSite फ़िल्टर (Playwright के लिए) ==========
 for cookie in cookies:
     if 'sameSite' in cookie:
-        # अगर "unspecified" या कोई और अवैध वैल्यू हो, तो "Lax" कर दो
         if cookie['sameSite'].lower() not in ['strict', 'lax', 'none']:
             cookie['sameSite'] = 'Lax'
         else:
-            # सही capitalization करो (Lax, Strict, None)
             cookie['sameSite'] = cookie['sameSite'].capitalize()
     else:
-        # अगर sameSite है ही नहीं, तो डिफ़ॉल्ट "Lax" डाल दो
         cookie['sameSite'] = 'Lax'
 
+def print_page_info(page, step_name=""):
+    """पेज की अहम जानकारी प्रिंट करो"""
+    print(f"\n--- {step_name} ---")
+    print(f"📍 URL: {page.url}")
+    print(f"📄 टाइटल: {page.title()}")
+
+    # क्या 'Logout' जैसा कुछ दिख रहा है? (लॉगिन चेक)
+    logout_btn = page.query_selector("a:has-text('Logout'), button:has-text('Logout')")
+    print(f"🔑 लॉगिन स्टेटस: {'लॉग्ड इन' if logout_btn else 'लॉग्ड आउट (या Logout बटन नहीं)'} ")
+
+    # iframes गिनो
+    iframes = page.query_selector_all("iframe")
+    print(f"🖼️ iframes की संख्या: {len(iframes)}")
+    for i, iframe in enumerate(iframes):
+        src = iframe.get_attribute("src")
+        print(f"   iframe {i+1}: src={src[:100] if src else 'none'}")
+
+    # 'Start Surfing' बटन की मौजूदगी
+    start_btn = page.query_selector("button:has-text('Start Surfing'), a:has-text('Start')")
+    print(f"▶️ Start Surfing बटन: {'मिला' if start_btn else 'नहीं मिला'}")
+
+    # पेज के टेक्स्ट का एक हिस्सा (500 अक्षर)
+    body_text = page.inner_text("body")[:600]
+    print(f"📝 पेज टेक्स्ट (शुरुआत):\n{body_text}")
+    print("-" * 50)
+
 def surf_ads(page):
-    print("📡 सीधे सर्फ ऐड्स पेज पर जा रहे हैं (कुकीज़ से लॉगिन)...")
+    print("📡 सर्फ ऐड्स पेज पर जा रहे हैं...")
     page.goto("https://cointiply.com/surf-ads", timeout=30000)
-    page.wait_for_timeout(random.randint(5000, 8000))
+    page.wait_for_timeout(random.randint(7000, 10000))
+    print_page_info(page, "सर्फ ऐड्स पेज")
 
-    # स्टार्ट सर्फिंग बटन
-    try:
-        start_btn = page.wait_for_selector(
-            "button:has-text('Start Surfing')", timeout=10000  # 10 सेकंड तक इंतज़ार
-        )
+    # स्टार्ट बटन दबाने की कोशिश
+    start_btn = page.query_selector("button:has-text('Start Surfing')")
+    if start_btn:
         start_btn.click()
-        print("✅ स्टार्ट सर्फिंग क्लिक किया")
-        page.wait_for_timeout(random.randint(4000, 6000))
-    except:
-        print("ℹ️ स्टार्ट बटन नहीं मिला, शायद पहले से सर्फिंग चालू है")
+        print("✅ Start Surfing क्लिक किया")
+        page.wait_for_timeout(5000)
+        print_page_info(page, "Start क्लिक के बाद")
 
-    ads_done = 0
-    max_ads = random.randint(5, 7)
+    # अब थोड़ी देर और रुककर iframes चेक करो
+    for wait_attempt in range(3):
+        print(f"\n⏳ {wait_attempt+1}वाँ इंतज़ार (10 सेकंड)...")
+        page.wait_for_timeout(10000)
+        print_page_info(page, f"इंतज़ार {wait_attempt+1} के बाद")
 
-    while ads_done < max_ads:
-        ad_frame = page.query_selector("iframe#adFrame, iframe")
-        if ad_frame:
-            ad_url = ad_frame.get_attribute("src")
-            print(f"📺 ऐड: {str(ad_url)[:60]}")
-            wait_time = random.randint(18000, 35000)
-            print(f"⏳ {wait_time//1000}s इंतज़ार...")
-            page.wait_for_timeout(wait_time)
-            ads_done += 1
-
-            try:
-                next_btn = page.wait_for_selector(
-                    "button:has-text('Next'), a:has-text('Next')", timeout=4000
-                )
-                next_btn.click()
-                page.wait_for_timeout(random.randint(2000, 4000))
-            except:
-                page.wait_for_timeout(random.randint(3000, 6000))
-        else:
-            print("🔄 कोई ऐड फ्रेम नहीं, रिफ्रेश कर रहे हैं")
-            page.reload()
-            page.wait_for_timeout(random.randint(8000, 12000))
-            if ads_done == 0:
-                print("❌ शायद आज के ऐड खत्म")
-                break
-
-    print(f"🎯 कुल {ads_done} विज्ञापन देखे।")
-    return ads_done
+    # अगर iframes होते तो ऐड देखते, लेकिन हम सिर्फ जाँच रहे हैं
+    print("🎯 डायग्नोस्टिक पूरा हुआ। ऊपर की जानकारी के आधार पर आगे बढ़ेंगे।")
 
 def fly():
     with sync_playwright() as p:
-        # असली Chrome जैसी सेटिंग्स
         browser = p.chromium.launch(
-            headless=False,  # अब visible mode में चलेगा
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-            ]
+            headless=True,  # हम हेडलेस ही रखेंगे ताकि xvfb की ज़रूरत न पड़े
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
-        # इंसानों जैसा context
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             viewport={"width": 1366, "height": 768},
             locale="en-US",
         )
         page = context.new_page()
-
-        # वो जादुई स्क्रिप्ट जो webdriver फ़्लैग हटाती है
         page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
-            // और कुछ common automation checks
             window.chrome = { runtime: {} };
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
         """)
-        
-        print("🔐 कुकीज़ सेट करके ऑटो-लॉगिन...")
+
+        print("🔐 कुकीज़ सेट करके लॉगिन...")
         page.goto("https://cointiply.com", timeout=30000)
-        page.context.add_cookies(cookies)  # अब sameSite सही है
+        page.context.add_cookies(cookies)
         page.reload()
-        page.wait_for_timeout(random.randint(3000, 5000))
+        page.wait_for_timeout(5000)
+        print_page_info(page, "लॉगिन के बाद होम पेज")
 
         surf_ads(page)
         browser.close()
