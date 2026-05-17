@@ -2,7 +2,7 @@ import os
 import json
 import time
 import requests
-from googlesearch import search
+from duckduckgo_search import DDGS
 from playwright.sync_api import sync_playwright
 
 # ========== CONFIGURATION ==========
@@ -37,7 +37,7 @@ def ask_ai(prompt):
             time.sleep(5)
     return ""
 
-def google_job_search():
+def web_search():
     queries = [
         "crypto earn task no KYC 2026",
         "web3 bounty for AI agent",
@@ -46,24 +46,23 @@ def google_job_search():
     ]
     tasks = []
     seen_urls = set()
-    for q in queries:
-        print(f"🔍 Google Search: '{q}'")
-        try:
-            # असली ब्राउज़र जैसा user-agent
-            results = search(q, num_results=5, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            count = 0
-            for url in results:
-                count += 1
-                if url not in seen_urls:
-                    seen_urls.add(url)
-                    tasks.append({
-                        "url": url,
-                        "title": url.split("//")[-1].split("/")[0]
-                    })
+    with DDGS() as ddgs:
+        for q in queries:
+            print(f"🔍 DuckDuckGo Search: '{q}'")
+            try:
+                results = list(ddgs.text(q, max_results=5))
+                print(f"   ↳ {len(results)} लिंक मिले")
+                for r in results:
+                    href = r.get("href")
+                    if href and href not in seen_urls:
+                        seen_urls.add(href)
+                        tasks.append({
+                            "url": href,
+                            "title": href.split("//")[-1].split("/")[0]
+                        })
                 time.sleep(2)
-            print(f"   ↳ {count} लिंक मिले")
-        except Exception as e:
-            print(f"❌ Search error: {e}")
+            except Exception as e:
+                print(f"❌ Search error: {e}")
     return tasks
 
 def evaluate_task(task):
@@ -137,7 +136,7 @@ def execute_task(page, task_url, action):
 
 def fly():
     print("🌍 EarnAI Google Job Hunter शुरू!")
-    tasks = google_job_search()
+    tasks = web_search()
     print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
     if not tasks:
         print("कोई टास्क नहीं मिला, अगले रन तक अलविदा।")
