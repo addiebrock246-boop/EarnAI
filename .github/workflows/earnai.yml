@@ -1,36 +1,24 @@
-name: EarnAI Google Job Hunter
-
+name: EarnAI Job Hunter
 on:
   schedule:
-    - cron: '0 */6 * * *'   # हर 6 घंटे में चलेगा
-  workflow_dispatch:          # मैन्युअल ट्रिगर
-
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 jobs:
   hunt:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
-    # 🔑 ये permission ज़रूरी है GITHUB_TOKEN के लिए
     permissions:
       contents: read
       id-token: write
-
     steps:
-      - name: रिपो चेकआउट
-        uses: actions/checkout@v4
-
-      - name: Python सेटअप
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: ज़रूरी चीज़ें इंस्टॉल करो
-        run: |
+      - run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
-
-      - name: EarnAI लॉन्च 🚀
-        run: python main.py
+      - run: python main.py
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # अपने-आप उपलब्ध
-          WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }} # तुम्हारा वॉलेट (पहले से सेट है)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
