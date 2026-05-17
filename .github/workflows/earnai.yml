@@ -6,7 +6,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      models: read       # 🆕 GitHub Models के लिए ज़रूरी
 
     steps:
       - name: Checkout repo
@@ -25,5 +29,6 @@ jobs:
       - name: Launch EarnAI 🚀
         run: python main.py
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # अपने-आप
           WALLETS_JSON: ${{ secrets.WALLETS_JSON }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
