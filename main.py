@@ -53,7 +53,8 @@ def google_job_search():
     for q in queries:
         print(f"🔍 Google Search: '{q}'")
         try:
-            for url in search(q, num=5, stop=5, user_agent="Mozilla/5.0"):
+            # num=5 की जगह stop=5 करो (यही बदलाव है)
+            for url in search(q, stop=5, user_agent="Mozilla/5.0"):
                 if url not in seen_urls:
                     seen_urls.add(url)
                     tasks.append({
