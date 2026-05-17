@@ -2,17 +2,17 @@ name: EarnAI Eternal Faucet Hunter
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # हर 6 घंटे में
-  workflow_dispatch:
+    - cron: '0 */6 * * *'   # हर 6 घंटे में अपने आप
+  workflow_dispatch:          # मैन्युअल ट्रिगर
 
 jobs:
   hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 360      # 6 घंटे
+    timeout-minutes: 360      # 6 घंटे का समय
 
     permissions:
       contents: read
-      models: read
+      models: read            # GitHub Models के लिए ज़रूरी
 
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +24,6 @@ jobs:
           playwright install --with-deps chromium
       - run: python main.py
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # अपने आप उपलब्ध
           WALLETS_JSON: ${{ secrets.WALLETS_JSON }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
