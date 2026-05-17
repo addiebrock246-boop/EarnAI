@@ -4,7 +4,6 @@ import time
 import requests
 from playwright.sync_api import sync_playwright
 
-# ========== CONFIGURATION ==========
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
@@ -14,7 +13,6 @@ AI_HEADERS = {
     "Content-Type": "application/json"
 }
 
-# ========== GITHUB MODELS AI ==========
 def ask_ai(prompt):
     payload = {
         "messages": [
@@ -36,7 +34,6 @@ def ask_ai(prompt):
             time.sleep(5)
     return ""
 
-# ========== SERPER GOOGLE SEARCH ==========
 def serper_search():
     queries = [
         "crypto earn task no KYC 2026",
@@ -46,7 +43,6 @@ def serper_search():
     ]
     tasks = []
     seen_urls = set()
-
     for q in queries:
         print(f"🔍 Serper Search: '{q}'")
         try:
@@ -67,35 +63,40 @@ def serper_search():
                         seen_urls.add(link)
                         tasks.append({"url": link, "title": title[:80]})
             elif resp.status_code == 429:
-                print("   ⚠️ Serper quota खत्म, अगले महीने रीसेट होगा।")
+                print("   ⚠️ Serper quota खत्म, अगले महीने रीसेट।")
                 break
             else:
                 print(f"   ❌ Error: {resp.status_code}")
             time.sleep(1)
         except Exception as e:
             print(f"   ❌ Search error: {e}")
-
     return tasks
 
-# ========== AI EVALUATOR ==========
 def evaluate_task(task):
     prompt = f"""Analyze this crypto task:
 URL: {task['url']}
 Title: {task['title']}
+
 Can an AI agent complete this using ONLY browser automation (clicking, typing, visiting pages)?
-Reply in JSON: {{"can_do": true/false, "action": "click"/"form"/"other", "reason": "short"}}"""
+Reply in VALID JSON format exactly like this example:
+{{"can_do": true, "action": "click", "reason": "Claim button present"}}
+or
+{{"can_do": false, "reason": "Requires KYC or complex captcha"}}
+
+The "action" field can be "click", "form", or "other"."""
     
     response = ask_ai(prompt)
+    print(f"    🤖 AI RAW: {response[:200]}")  # डीबग लाइन
     try:
         json_start = response.find('{')
         json_end = response.rfind('}') + 1
         if json_start != -1 and json_end > json_start:
             return json.loads(response[json_start:json_end])
+        else:
+            return {"can_do": False, "reason": "AI response not JSON"}
     except:
-        pass
-    return {"can_do": False, "reason": "parse error"}
+        return {"can_do": False, "reason": "parse error"}
 
-# ========== PLAYWRIGHT EXECUTOR ==========
 def execute_task(page, task_url, action):
     print(f"  🛠️ Executing: {task_url}")
     try:
@@ -127,15 +128,13 @@ def execute_task(page, task_url, action):
     except Exception as e:
         print(f"    ❌ Execution error: {e}")
 
-# ========== MAIN ==========
 def fly():
     print("🌍 EarnAI Job Hunter (Serper + GitHub Models) शुरू!")
     tasks = serper_search()
     print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
     if not tasks:
-        print("कोई टास्क नहीं मिला, अगले रन तक अलविदा।")
+        print("कोई टास्क नहीं मिला।")
         return
-    
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         page = browser.new_page()
@@ -151,7 +150,7 @@ def fly():
                 print(f"  ❌ छोड़ा ({decision.get('reason', '')})")
             time.sleep(2)
         browser.close()
-        print(f"\n🏁 मिशन खत्म! {completed}/{len(tasks)} पर कोशिश की गई।")
+        print(f"\n🏁 मिशन खत्म! {completed}/{len(tasks)} पर कोशिश।")
 
 if __name__ == "__main__":
     fly()
