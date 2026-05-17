@@ -1,36 +1,36 @@
-name: EarnAI Daily Flight
+name: EarnAI Google Job Hunter
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # हर 3 घंटे में
+    - cron: '0 */6 * * *'   # हर 6 घंटे में चलेगा
   workflow_dispatch:          # मैन्युअल ट्रिगर
 
 jobs:
-  fly:
+  hunt:
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
+    # 🔑 ये permission ज़रूरी है GITHUB_TOKEN के लिए
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
-      - name: Checkout repo
+      - name: रिपो चेकआउट
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Python सेटअप
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install tools
+      - name: ज़रूरी चीज़ें इंस्टॉल करो
         run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
-          # 1. CloakBrowser का स्टील्थ ब्राउज़र इंस्टॉल करो
-          npm install cloakbrowser playwright-core
 
-      - name: Launch EarnAI 🚀
-        run: |
-          # 2. वर्चुअल डिस्प्ले इंस्टॉल और चलाओ
-          sudo apt-get update && sudo apt-get install -y xvfb
-          xvfb-run python main.py
+      - name: EarnAI लॉन्च 🚀
+        run: python main.py
         env:
-          COINTIPLY_COOKIES: ${{ secrets.COINTIPLY_COOKIES }}
-          WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # अपने-आप उपलब्ध
+          WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }} # तुम्हारा वॉलेट (पहले से सेट है)
