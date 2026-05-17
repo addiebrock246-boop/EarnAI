@@ -7,11 +7,9 @@ from playwright.sync_api import sync_playwright
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
 
-# ========== सर्च (सिर्फ सटीक, काम की साइटों के लिए) ==========
 def serper_search():
     queries = [
         "site:freecash.com earn offers",
-        "site:cointiply.com ptc ads",
         "site:firefaucet.win claim faucet",
         "site:jumptask.io microtask",
         "site:superteam.fun bounty",
@@ -39,7 +37,6 @@ def serper_search():
                 print(f"   ↳ {len(items)} लिंक")
                 for item in items:
                     link = item.get("link")
-                    # फ़ालतू की लिंक हटाओ (ब्लॉग, सपोर्ट, अकादमी)
                     if not link:
                         continue
                     skip_words = ["academy", "support", "blog", "faq", "about", "press", "career", "contact"]
@@ -58,14 +55,13 @@ def serper_search():
         time.sleep(random.uniform(0.5, 1.5))
     return tasks
 
-# ========== एक्ज़ीक्यूटर (अब बिना AI के, सीधा एक्शन) ==========
 def execute_task(page, url):
     print(f"  🌐 {url[:70]}...")
     try:
         page.goto(url, timeout=15000)
         page.wait_for_timeout(random.randint(2000, 4000))
 
-        # सबसे पहले, जाने-माने बटन शब्द खोजो
+        # 1. सबसे पहले, जाने-माने बटन शब्द खोजो
         action_words = ["claim", "earn", "roll", "start", "free", "get", "receive",
                         "quest", "participate", "join", "complete", "surf", "view"]
         for word in action_words:
@@ -79,7 +75,7 @@ def execute_task(page, url):
                 except:
                     pass
 
-        # अगर कोई बटन नहीं मिला, तो वॉलेट एड्रेस भरो
+        # 2. अगर कोई बटन नहीं मिला, तो वॉलेट एड्रेस भरो
         inputs = page.query_selector_all(
             "input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']"
         )
@@ -119,10 +115,10 @@ def fly():
         )
         page = browser.new_page()
 
-        for i, task in enumerate(tasks[:8]):  # 8 साइट्स पर हाथ आज़माओ
+        for i, task in enumerate(tasks[:8]):
             print(f"[{i+1}/8]")
             execute_task(page, task["url"])
-            time.sleep(random.randint(2, 4))  # साइट्स को शक न हो
+            time.sleep(random.randint(2, 4))
 
         browser.close()
         print("🏁 मिशन पूरा।")
