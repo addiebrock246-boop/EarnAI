@@ -49,8 +49,11 @@ def google_job_search():
     for q in queries:
         print(f"🔍 Google Search: '{q}'")
         try:
-            # यहीं एक बदलाव – num_results=5
-            for url in search(q, num_results=5):
+            # असली ब्राउज़र जैसा user-agent
+            results = search(q, num_results=5, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            count = 0
+            for url in results:
+                count += 1
                 if url not in seen_urls:
                     seen_urls.add(url)
                     tasks.append({
@@ -58,6 +61,7 @@ def google_job_search():
                         "title": url.split("//")[-1].split("/")[0]
                     })
                 time.sleep(2)
+            print(f"   ↳ {count} लिंक मिले")
         except Exception as e:
             print(f"❌ Search error: {e}")
     return tasks
