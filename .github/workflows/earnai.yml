@@ -1,12 +1,14 @@
-name: Fully AI + Fallback Test
+name: EarnAI Eternal Faucet Hunter
 
 on:
+  schedule:
+    - cron: '0 */6 * * *'   # हर 6 घंटे में
   workflow_dispatch:
 
 jobs:
-  test:
+  hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360      # 6 घंटे
 
     permissions:
       contents: read
