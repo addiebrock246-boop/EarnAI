@@ -37,13 +37,14 @@ def ask_ai_fast(prompt):
     return None
 
 def serper_search():
+    # सीधे प्लेटफ़ॉर्म के टास्क पेज ढूँढो
     queries = [
-        "layer3 quest crypto earn",      # Layer3 के क्वेस्ट
-        "zealy crypto quest",           # Zealy (पहले Crew3) के क्वेस्ट
-        "galxe campaign crypto earn",   # Galxe के कैंपेन
-        "dework crypto task",           # Dework के वेब3 टास्क
-        "questn crypto task earn",      # QuestN के टास्क
-        "web3 bounty task no KYC",      # वेब3 बाउंटी
+        "site:app.layer3.xyz quest",
+        "site:zealy.io quest crypto",
+        "site:app.dework.xyz task web3",
+        "site:galxe.com campaign",
+        "site:questn.com task",
+        "site:intract.io quest",
         "free crypto task platform 2026",
         "simple crypto task complete earn Satoshi"
     ]
@@ -63,7 +64,8 @@ def serper_search():
                 print(f"   ↳ {len(items)} लिंक")
                 for item in items:
                     link = item.get("link")
-                    if link and link not in seen:
+                    # सिर्फ काम के लिंक लो (कोई youtube, reddit नहीं)
+                    if link and link not in seen and "youtube.com" not in link and "reddit.com" not in link:
                         seen.add(link)
                         tasks.append({"url": link, "title": item.get("title", "")[:80]})
             elif resp.status_code == 429:
@@ -99,8 +101,8 @@ def execute_task(page, url, action):
         page.goto(url, timeout=15000)
         page.wait_for_timeout(3000)
 
-        # असली कमाई वाले बटन ढूँढो
-        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate"]
+        # स्मार्ट बटन सर्च
+        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate", "join"]
         for word in keywords:
             btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
             if btn:
@@ -112,7 +114,7 @@ def execute_task(page, url, action):
                 except:
                     pass
 
-        # वॉलेट या ईमेल फ़ील्ड भरो
+        # वॉलेट / ईमेल फ़ील्ड
         inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']")
         for inp in inputs[:2]:
             try:
