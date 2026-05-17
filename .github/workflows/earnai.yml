@@ -1,7 +1,7 @@
-name: EarnAI AI Test
+name: Fully AI Bot Test
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # सिर्फ मैन्युअल ट्रिगर
 
 jobs:
   test:
@@ -10,24 +10,17 @@ jobs:
 
     permissions:
       contents: read
-      models: read       # 🆕 GitHub Models के लिए ज़रूरी
+      models: read            # GitHub Models के लिए जरूरी
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install tools
-        run: |
+      - run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
-
-      - name: Launch EarnAI 🚀
-        run: python main.py
+      - run: python main.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # अपने-आप
           WALLETS_JSON: ${{ secrets.WALLETS_JSON }}
