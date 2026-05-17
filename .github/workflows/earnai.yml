@@ -1,24 +1,37 @@
 name: EarnAI Job Hunter
+
 on:
   schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
+    - cron: '0 */6 * * *'   # हर 6 घंटे में चलेगा
+  workflow_dispatch:          # मैन्युअल ट्रिगर
+
 jobs:
   hunt:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+
+    # 🔑 GitHub Models के लिए ज़रूरी permission
     permissions:
       contents: read
       id-token: write
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: |
+
+      - name: Install dependencies
+        run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
-      - run: python main.py
+
+      - name: Launch EarnAI 🚀
+        run: python main.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
