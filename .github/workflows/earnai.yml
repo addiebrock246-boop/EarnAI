@@ -1,4 +1,4 @@
-name: Fully AI Bot Test
+name: Fully AI + Fallback Test
 
 on:
   workflow_dispatch:
