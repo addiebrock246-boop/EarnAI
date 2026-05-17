@@ -2,7 +2,6 @@ import os
 import json
 import time
 import requests
-from duckduckgo_search import DDGS
 from playwright.sync_api import sync_playwright
 
 # ========== CONFIGURATION ==========
@@ -14,10 +13,34 @@ AI_HEADERS = {
     "Content-Type": "application/json"
 }
 
+# ========== TRUSTED JOB PLATFORMS (scrape या API) ==========
+PLATFORMS = [
+    {
+        "name": "Layer3",
+        "url": "https://app.layer3.xyz/quests?type=all&status=active",
+        "method": "scrape",  # Playwright से खोलकर टास्क लिंक निकालेंगे
+        "selector": "a[href*='/quest/']"
+    },
+    {
+        "name": "Zealy",
+        "url": "https://zealy.io/c/explore",  # सार्वजनिक क्वेस्ट
+        "method": "scrape",
+        "selector": "a[href*='/quest/']"
+    },
+    {
+        "name": "Dework",
+        "url": "https://app.dework.xyz/explore?type=all",
+        "method": "scrape",
+        "selector": "a[href*='/task/']"
+    },
+    # और प्लेटफ़ॉर्म जोड़ सकते हैं
+]
+
+# ========== GITHUB MODELS AI CALL ==========
 def ask_ai(prompt):
     payload = {
         "messages": [
-            {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON, no other text."},
+            {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON."},
             {"role": "user", "content": prompt}
         ],
         "model": "gpt-4o",
@@ -30,53 +53,50 @@ def ask_ai(prompt):
             if resp.status_code == 200:
                 return resp.json()["choices"][0]["message"]["content"].strip()
             else:
-                print(f"⚠️ AI Error {resp.status_code}, retry {attempt+1}")
                 time.sleep(5)
-        except Exception as e:
-            print(f"❌ AI Exception: {e}")
+        except:
             time.sleep(5)
     return ""
 
-def web_search():
-    queries = [
-        "crypto earn task no KYC 2026",
-        "web3 bounty for AI agent",
-        "free crypto airdrop quest",
-        "simple crypto task complete earn"
-    ]
-    tasks = []
-    seen_urls = set()
-    with DDGS() as ddgs:
-        for q in queries:
-            print(f"🔍 DuckDuckGo Search: '{q}'")
-            try:
-                results = list(ddgs.text(q, max_results=5))
-                print(f"   ↳ {len(results)} लिंक मिले")
-                for r in results:
-                    href = r.get("href")
-                    if href and href not in seen_urls:
-                        seen_urls.add(href)
-                        tasks.append({
-                            "url": href,
-                            "title": href.split("//")[-1].split("/")[0]
-                        })
-                time.sleep(2)
-            except Exception as e:
-                print(f"❌ Search error: {e}")
-    return tasks
+# ========== PLATFORM SCANNER ==========
+def scan_platforms(context):
+    all_tasks = []
+    for plat in PLATFORMS:
+        print(f"🌐 Scanning {plat['name']}...")
+        try:
+            page = context.new_page()
+            page.goto(plat["url"], timeout=30000)
+            page.wait_for_timeout(5000)
+            # टास्क लिंक ढूँढ़ो
+            links = page.query_selector_all(plat["selector"])
+            print(f"   ↳ {len(links)} potential tasks found")
+            for link in links:
+                href = link.get_attribute("href")
+                if href:
+                    # पूरा URL बनाओ अगर रिश्तेदार हो
+                    if href.startswith("/"):
+                        base = plat["url"].split("/")[0] + "//" + plat["url"].split("/")[2]
+                        href = base + href
+                    all_tasks.append({
+                        "platform": plat["name"],
+                        "url": href,
+                        "title": link.inner_text().strip() or href.split("/")[-1]
+                    })
+            page.close()
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+        time.sleep(2)
+    return all_tasks
 
+# ========== AI EVALUATOR ==========
 def evaluate_task(task):
-    prompt = f"""Analyze this potential crypto earning task:
+    prompt = f"""Analyze this crypto task:
+Platform: {task['platform']}
 URL: {task['url']}
 Title: {task['title']}
 
-Can an AI bot complete this task using ONLY browser automation (clicking, typing, visiting URLs)? 
-Reply in VALID JSON format exactly like this example:
-{{"can_do": true, "action": "click", "reason": "Claim button present"}}
-or
-{{"can_do": false, "reason": "Requires KYC or complex captcha"}}
-
-The "action" field can be "click", "form", or "other"."""
+Can an AI agent complete this using only browser automation (clicking, typing, visiting pages)? 
+Reply in JSON: {{"can_do": true/false, "action": "click"/"form"/"other", "reason": "short"}}"""
     
     response = ask_ai(prompt)
     try:
@@ -84,81 +104,70 @@ The "action" field can be "click", "form", or "other"."""
         json_end = response.rfind('}') + 1
         if json_start != -1 and json_end > json_start:
             return json.loads(response[json_start:json_end])
-        else:
-            return {"can_do": False, "reason": "AI response not JSON"}
     except:
-        return {"can_do": False, "reason": "Parse error"}
+        pass
+    return {"can_do": False, "reason": "parse error"}
 
-def execute_task(page, task_url, action):
-    print(f"  🛠️ Automating: {task_url}")
+# ========== TASK EXECUTOR ==========
+def execute_task(page, task):
+    print(f"  🛠️ Executing: {task['url']}")
     try:
-        page.goto(task_url, timeout=20000)
+        page.goto(task['url'], timeout=20000)
         page.wait_for_timeout(5000)
-        
+        action = task.get("action", "click")
         if action == "click":
-            clickable = page.query_selector_all("button, a.btn, input[type='submit'], a[href*='claim']")
-            if clickable:
-                for elem in clickable[:3]:
-                    try:
-                        elem.click()
-                        print("    ✅ Clicked something")
-                        page.wait_for_timeout(3000)
-                    except:
-                        pass
-            else:
-                print("    ❌ No clickable element found")
-                
+            btns = page.query_selector_all("button, a.btn, input[type='submit']")
+            for btn in btns[:3]:
+                try:
+                    btn.click()
+                    print("    ✅ Clicked")
+                    page.wait_for_timeout(2000)
+                except:
+                    pass
         elif action == "form":
-            inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name='address']")
-            if inputs:
-                for inp in inputs[:2]:
-                    try:
-                        inp.fill(WALLET)
-                        print(f"    ✅ Filled: {WALLET[:10]}...")
-                        page.wait_for_timeout(2000)
-                    except:
-                        pass
-                submit_btn = page.query_selector("button[type='submit'], input[type='submit']")
-                if submit_btn:
-                    try:
-                        submit_btn.click()
-                        print("    ✅ Submitted form")
-                        page.wait_for_timeout(3000)
-                    except:
-                        pass
-            else:
-                print("    ❌ No form inputs found")
+            inputs = page.query_selector_all("input[type='text'], input[type='email']")
+            for inp in inputs[:2]:
+                try:
+                    inp.fill(WALLET)
+                    print(f"    ✅ Filled: {WALLET[:10]}...")
+                    page.wait_for_timeout(2000)
+                except:
+                    pass
+            submit = page.query_selector("button[type='submit'], input[type='submit']")
+            if submit:
+                submit.click()
+                print("    ✅ Submitted")
+                page.wait_for_timeout(3000)
         else:
-            print("    ⚠️ Unknown action, just visiting")
-            
+            print("    ⚠️ Unknown action")
     except Exception as e:
-        print(f"    ❌ Execution error: {e}")
+        print(f"    ❌ Error: {e}")
 
+# ========== MAIN ==========
 def fly():
-    print("🌍 EarnAI Google Job Hunter शुरू!")
-    tasks = web_search()
-    print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
-    if not tasks:
-        print("कोई टास्क नहीं मिला, अगले रन तक अलविदा।")
-        return
-    
+    print("🌍 EarnAI Multi-Platform Job Hunter शुरू!")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
-        page = browser.new_page()
+        context = browser.new_context()
+        tasks = scan_platforms(context)
+        print(f"\n🎯 कुल {len(tasks)} tasks मिले")
+        
         completed = 0
+        page = context.new_page()
         for i, task in enumerate(tasks):
-            print(f"[{i+1}/{len(tasks)}] {task['url'][:70]}...")
+            print(f"[{i+1}/{len(tasks)}] {task['platform']}: {task['title'][:50]}...")
             decision = evaluate_task(task)
             if decision.get("can_do"):
-                print(f"  ✅ AI: कर सकते हैं! ({decision.get('reason', '')})")
-                action = decision.get("action", "click")
-                execute_task(page, task["url"], action)
+                print(f"  ✅ AI: कर सकते हैं ({decision.get('reason', '')})")
+                task["action"] = decision.get("action", "click")
+                execute_task(page, task)
                 completed += 1
             else:
-                print(f"  ❌ AI: छोड़ो ({decision.get('reason', '')})")
-            time.sleep(3)
+                print(f"  ❌ छोड़ा ({decision.get('reason', '')})")
+            time.sleep(2)
+        page.close()
         browser.close()
-        print(f"\n🏁 मिशन ख़त्म! {completed}/{len(tasks)} टास्क पर कोशिश की गई।")
+        print(f"\n🏁 मिशन ख़त्म! {completed}/{len(tasks)} पर कोशिश।")
 
 if __name__ == "__main__":
     fly()
