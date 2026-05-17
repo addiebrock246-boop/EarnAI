@@ -10,7 +10,6 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
 
 def ask_ai_fast(prompt):
-    # Groq
     if GROQ_API_KEY:
         try:
             resp = requests.post(
@@ -23,7 +22,6 @@ def ask_ai_fast(prompt):
                 return resp.json()["choices"][0]["message"]["content"].strip()
         except:
             pass
-    # Gemini
     if GEMINI_API_KEY:
         try:
             resp = requests.post(
@@ -40,10 +38,10 @@ def ask_ai_fast(prompt):
 
 def serper_search():
     queries = [
-        "crypto earn task no KYC 2026",
-        "web3 bounty for AI agent",
-        "free crypto airdrop quest",
-        "simple crypto task complete earn"
+        "free crypto faucet claim instant payout 2026",
+        "web3 microtask earn crypto no KYC 2026",
+        "crypto airdrop quest complete and earn 2026",
+        "simple crypto task earn Satoshi 2026"
     ]
     tasks = []
     seen = set()
@@ -85,57 +83,70 @@ If unsure, just say false."""
             if json_start != -1:
                 decision = json.loads(ai_response[json_start:json_end])
                 action = decision.get("action", "click")
-                print(f"    🤖 AI: {decision.get('reason', '')} (फिर भी कोशिश करेंगे)")
+                print(f"    🤖 AI: {decision.get('reason', '')}")
                 return True, action
         except:
             pass
     return True, "click"
 
 def execute_task(page, url, action):
-    print(f"  🌐 {url[:60]}...")
+    print(f"  🌐 {url[:70]}...")
     try:
-        page.goto(url, timeout=10000)
-        page.wait_for_timeout(1500)
-        if action in ("click", "form"):
-            btns = page.query_selector_all("button, a.btn, input[type='submit']")
-            for btn in btns[:2]:
+        page.goto(url, timeout=15000)
+        page.wait_for_timeout(3000)  # पेज को लोड होने का पूरा समय दो
+
+        # सबसे पहले, जाने-माने "कमाई वाले" बटन ढूँढो
+        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive"]
+        for word in keywords:
+            btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
+            if btn:
                 try:
                     btn.click()
-                    print("    🖱️ Clicked")
-                    page.wait_for_timeout(500)
+                    print(f"    🖱️ '{word}' बटन क्लिक किया")
+                    page.wait_for_timeout(2000)
+                    return
                 except:
                     pass
-            inputs = page.query_selector_all("input[type='text'], input[type='email']")
-            for inp in inputs[:1]:
-                try:
-                    inp.fill(WALLET)
-                    print(f"    📝 Filled {WALLET[:6]}...")
-                except:
-                    pass
-            submit = page.query_selector("button[type='submit'], input[type='submit']")
-            if submit:
+
+        # फिर वॉलेट या ईमेल फ़ील्ड ढूँढो
+        inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']")
+        for inp in inputs[:2]:
+            try:
+                inp.fill(WALLET)
+                print(f"    📝 {WALLET[:6]}... भरा")
+                page.wait_for_timeout(1000)
+            except:
+                pass
+
+        # सबमिट बटन
+        submit = page.query_selector("button[type='submit'], input[type='submit']")
+        if submit:
+            try:
                 submit.click()
-                print("    ✅ Submitted")
+                print("    ✅ सबमिट किया")
+                page.wait_for_timeout(2000)
+            except:
+                pass
     except Exception as e:
         print(f"    ❌ {e}")
 
 def fly():
     print("🌍 EarnAI – Groq+Gemini+Fallback जॉब हंटर 🚀")
     tasks = serper_search()
-    print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 5 पर कोशिश।\n")
+    print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 3 पर कोशिश।\n")
     if not tasks:
         return
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         page = browser.new_page()
-        for i, task in enumerate(tasks[:5]):
-            print(f"[{i+1}/5]")
+        for i, task in enumerate(tasks[:3]):
+            print(f"[{i+1}/3]")
             can_do, action = evaluate_task_with_fallback(task)
             if can_do:
                 execute_task(page, task["url"], action)
             else:
                 print("  ❌ AI ने मना कर दिया।")
-            time.sleep(1)
+            time.sleep(3)  # हर टास्क के बाद थोड़ा आराम
         browser.close()
         print("🏁 मिशन पूरा।")
 
