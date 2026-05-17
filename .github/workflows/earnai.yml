@@ -2,13 +2,13 @@ name: EarnAI Job Hunter
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
+    - cron: '0 */6 * * *'   # हर 6 घंटे में ऑटोमैटिक चलेगा
+  workflow_dispatch:          # मैन्युअल ट्रिगर का बटन
 
 jobs:
   hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 15      # 15 मिनट में खुद-ब-खुद रुकेगा
 
     steps:
       - name: Checkout repo
@@ -28,4 +28,4 @@ jobs:
         run: python main.py
         env:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
-          WALLET_ADDRESS: ${{ secrets.WALLET_ADDRESS }}
+          WALLETS_JSON: ${{ secrets.WALLETS_JSON }}
