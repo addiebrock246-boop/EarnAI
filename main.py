@@ -2,7 +2,7 @@ import os
 import json
 import time
 import random
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from playwright.sync_api import sync_playwright
 
 # ========== CONFIG ==========
@@ -31,7 +31,7 @@ def quick_search():
                     if href not in seen:
                         seen.add(href)
                         tasks.append(href)
-                time.sleep(random.randint(2, 3))  # सम्मान
+                time.sleep(random.randint(2, 3))
             except Exception as e:
                 print(f"   ❌ {e}")
     return tasks
@@ -58,7 +58,6 @@ def try_claim(page, url):
         wallet = wallets.get(crypto, wallets.get("BTC", ""))
         print(f"    ℹ️ '{crypto}' माँग")
 
-        # इनपुट भरो
         inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='address'], input[name*='wallet']")
         filled = False
         for inp in inputs[:2]:
@@ -70,7 +69,6 @@ def try_claim(page, url):
                 break
             except: pass
 
-        # बटन दबाओ
         for word in ["claim","roll","earn","start","free","get","submit","send","reward"]:
             btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
             if btn:
@@ -93,7 +91,6 @@ def try_claim(page, url):
     except Exception as e:
         print(f"    ❌ {str(e)[:40]}")
 
-# ========== MAIN ==========
 def fly():
     print("🌍 DuckDuckGo टेस्ट 🚀")
     urls = quick_search()
