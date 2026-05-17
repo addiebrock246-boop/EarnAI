@@ -37,15 +37,17 @@ def ask_ai_fast(prompt):
     return None
 
 def serper_search():
-    # सीधे प्लेटफ़ॉर्म के टास्क पेज ढूँढो
+    # सीधे सिंपल टास्क वाले प्लेटफ़ॉर्म को टारगेट करें
     queries = [
-        "site:app.layer3.xyz quest",
-        "site:zealy.io quest crypto",
-        "site:app.dework.xyz task web3",
-        "site:galxe.com campaign",
-        "site:questn.com task",
-        "site:intract.io quest",
-        "free crypto task platform 2026",
+        "site:freecash.com earn crypto",
+        "site:cointiply.com ptc ads",
+        "site:firefaucet.win claim",
+        "site:jumptask.io task",
+        "site:superteam.fun bounty",
+        "site:taskon.xyz quest",
+        "site:galxe.com campaign reward",
+        "site:layer3.xyz quest earn",
+        "crypto microtask earn no KYC 2026",
         "simple crypto task complete earn Satoshi"
     ]
     tasks = []
@@ -56,7 +58,7 @@ def serper_search():
             resp = requests.post(
                 "https://google.serper.dev/search",
                 headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-                json={"q": q, "num": 5},
+                json={"q": q, "num": 3},
                 timeout=10
             )
             if resp.status_code == 200:
@@ -64,8 +66,8 @@ def serper_search():
                 print(f"   ↳ {len(items)} लिंक")
                 for item in items:
                     link = item.get("link")
-                    # सिर्फ काम के लिंक लो (कोई youtube, reddit नहीं)
-                    if link and link not in seen and "youtube.com" not in link and "reddit.com" not in link:
+                    # सिर्फ काम के लिंक लो (कोई youtube, reddit, blogspot नहीं)
+                    if link and link not in seen and "youtube.com" not in link and "reddit.com" not in link and "medium.com" not in link:
                         seen.add(link)
                         tasks.append({"url": link, "title": item.get("title", "")[:80]})
             elif resp.status_code == 429:
@@ -101,8 +103,8 @@ def execute_task(page, url, action):
         page.goto(url, timeout=15000)
         page.wait_for_timeout(3000)
 
-        # स्मार्ट बटन सर्च
-        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate", "join"]
+        # स्मार्ट बटन सर्च (कमाई वाले शब्द)
+        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate", "join", "complete"]
         for word in keywords:
             btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
             if btn:
@@ -137,7 +139,7 @@ def execute_task(page, url, action):
         print(f"    ❌ {e}")
 
 def fly():
-    print("🌍 EarnAI – Direct Platform जॉब हंटर 🚀")
+    print("🌍 EarnAI – Hyper-Targeted जॉब हंटर 🚀")
     tasks = serper_search()
     print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 5 पर कोशिश।\n")
     if not tasks:
