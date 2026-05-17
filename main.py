@@ -14,7 +14,7 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TEST_MODE = True          # टेस्ट मोड (सिर्फ 5 साइट्स)
 AI_ENABLED = True         # Groq AI इस्तेमाल करना है
 
-# टेस्ट के लिए बहुत छोटी फिक्स्ड लिस्ट
+# टेस्ट के लिए छोटी लिस्ट
 FIXED_SITES = [
     "https://firefaucet.win",
     "https://cointiply.com/ptc-ads",
@@ -23,9 +23,9 @@ FIXED_SITES = [
     "https://free-solana.com"
 ]
 
-# ========== DDG SEARCH (टेस्ट के लिए बंद) ==========
+# ========== DDG SEARCH (टेस्ट में बंद) ==========
 def ddg_search_new_sites(num_queries=0):
-    return []  # टेस्ट में कोई DDG नहीं
+    return []
 
 # ========== AI FALLBACK (Groq) ==========
 def ask_ai_what_to_do(page_text, url):
@@ -67,7 +67,7 @@ def detect_crypto_type(text):
     if "ethereum" in text or "eth" in text.split(): return "ETH"
     return "BTC"
 
-# ========== कुकी बैनर ==========
+# ========== कुकी बैनर हैंडलर ==========
 def handle_cookie_banner(page):
     for word in ["accept", "ok", "agree", "close", "consent", "allow", "got it"]:
         try:
@@ -80,7 +80,7 @@ def handle_cookie_banner(page):
             pass
     return False
 
-# ========== ड्रॉपडाउन ==========
+# ========== ड्रॉपडाउन हैंडलर ==========
 def handle_dropdown(page, crypto):
     selects = page.query_selector_all("select")
     for sel in selects:
@@ -96,7 +96,7 @@ def handle_dropdown(page, crypto):
             return True
     return False
 
-# ========== साइट पर काम ==========
+# ========== साइट विज़िटर + क्लेमर ==========
 def try_claim(page, url, success_list):
     try:
         page.goto(url, timeout=6000, wait_until="domcontentloaded")
@@ -110,7 +110,9 @@ def try_claim(page, url, success_list):
         handle_dropdown(page, crypto)
 
         # इनपुट भरो
-        inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='address'], input[name*='wallet']")
+        inputs = page.query_selector_all(
+            "input[type='text'], input[type='email'], input[name*='address'], input[name*='wallet']"
+        )
         filled = False
         for inp in inputs[:2]:
             try:
@@ -127,7 +129,9 @@ def try_claim(page, url, success_list):
 
         # बटन दबाओ
         for word in ["claim","roll","earn","start","free","get","submit","send","reward","spin","mine","bonus"]:
-            btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
+            btn = page.query_selector(
+                f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]"
+            )
             if btn:
                 try:
                     btn.click()
@@ -138,7 +142,7 @@ def try_claim(page, url, success_list):
                 except:
                     pass
 
-        # कोई बटन नहीं मिला → AI से पूछो
+        # AI फ़ॉलबैक (अगर कोई बटन नहीं मिला और फॉर्म नहीं भरा)
         if not filled:
             ai = ask_ai_what_to_do(body_text, url)
             if ai:
