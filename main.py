@@ -1,91 +1,183 @@
 import os
 import json
 import time
-import random
+import requests
+from googlesearch import search
 from playwright.sync_api import sync_playwright
-# CloakBrowser को इंपोर्ट नहीं करना है, बस लॉन्च करने का तरीका बदलना है।
 
-# ========== कुकीज़ लोड और sameSite फिक्स (ये वही रहेगा) ==========
-COOKIES_JSON = os.environ["COINTIPLY_COOKIES"]
-cookies = json.loads(COOKIES_JSON)
+# ========== CONFIGURATION ==========
+GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]          # GitHub Actions में अपने-आप मिलता है
+WALLET = os.environ.get("WALLET_ADDRESS", "0x...") # तुम्हारा crypto wallet
+AI_URL = "https://models.inference.ai.azure.com/chat/completions"
+AI_HEADERS = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "Content-Type": "application/json"
+}
 
-for cookie in cookies:
-    if 'sameSite' in cookie:
-        if cookie['sameSite'].lower() not in ['strict', 'lax', 'none']:
-            cookie['sameSite'] = 'Lax'
-        else:
-            cookie['sameSite'] = cookie['sameSite'].capitalize()
-    else:
-        cookie['sameSite'] = 'Lax'
-
-def ptc_ads(context, page):
-    print("📡 PTC Ads पेज पर जा रहे हैं...")
-    page.goto("https://cointiply.com/ptc-ads", timeout=30000)
-    page.wait_for_timeout(random.randint(5000, 8000))
-
-    # पुष्टि करो कि लॉगिन है
-    if "login" in page.url.lower():
-        print("❌ लॉगिन नहीं हुआ — कुकीज़ अपडेट करो")
-        return 0
-    logout_btn = page.query_selector("a:has-text('Logout')")
-    if not logout_btn:
-        print("❌ Logout बटन नहीं दिखा, लॉग्ड इन नहीं")
-        return 0
-    print("✅ लॉगिन सफल")
-
-    # सारे PTC ऐड लिंक ढूँढो
-    ad_links = page.query_selector_all("a[href*='/ptc/'], a:has-text('Visit'), a:has-text('View')")
-    if not ad_links:
-        # वैकल्पिक सेलेक्टर
-        ad_links = page.query_selector_all("a.btn, a.button")
-    print(f"🔘 {len(ad_links)} PTC लिंक मिले")
-
-    ads_clicked = 0
-    for btn in ad_links:
-        if ads_clicked >= 5:
-            break
+# ========== GITHUB MODELS AI CALL ==========
+def ask_ai(prompt):
+    """GitHub Models (GPT-4o) को सवाल भेजो और JSON जवाब लो"""
+    payload = {
+        "messages": [
+            {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON, no other text."},
+            {"role": "user", "content": prompt}
+        ],
+        "model": "gpt-4o",
+        "temperature": 0.7,
+        "max_tokens": 250
+    }
+    for attempt in range(3):
         try:
-            href = btn.get_attribute("href")
-            if not href or (href.startswith("https://cointiply.com") and "ptc" not in href):
-                continue
-            print(f"👉 क्लिक: {href[:60]}")
-            # नए टैब (पेज) में खोलो ताकि मूल पेज सुरक्षित रहे
-            new_page = context.new_page()
-            new_page.goto(href, timeout=30000)
-            new_page.wait_for_timeout(random.randint(8000, 12000))
-            new_page.close()
-            ads_clicked += 1
-            page.wait_for_timeout(random.randint(2000, 4000))
+            resp = requests.post(AI_URL, headers=AI_HEADERS, json=payload, timeout=30)
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"].strip()
+            else:
+                print(f"⚠️ AI Error {resp.status_code}, retry {attempt+1}")
+                time.sleep(5)
         except Exception as e:
-            print(f"⚠️ इस ऐड में दिक्कत: {e}")
+            print(f"❌ AI Exception: {e}")
+            time.sleep(5)
+    return ""  # तीन बार फ़ेल होने पर खाली
 
-    print(f"🎯 कुल {ads_clicked} PTC ऐड खोले गए।")
-    return ads_clicked
+# ========== GOOGLE JOB SEARCH ==========
+def google_job_search():
+    """4 अलग-अलग कीवर्ड से Google सर्च करो और लिंक इकट्ठा करो"""
+    queries = [
+        "crypto earn task no KYC 2026",
+        "web3 bounty for AI agent",
+        "free crypto airdrop quest",
+        "simple crypto task complete earn"
+    ]
+    tasks = []
+    seen_urls = set()
+    for q in queries:
+        print(f"🔍 Google Search: '{q}'")
+        try:
+            for url in search(q, num=5, stop=5, user_agent="Mozilla/5.0"):
+                if url not in seen_urls:
+                    seen_urls.add(url)
+                    tasks.append({
+                        "url": url,
+                        "title": url.split("//")[-1].split("/")[0]  # डोमेन नाम टाइटल की जगह
+                    })
+                time.sleep(2)  # Google को गुस्सा न दिलाएँ
+        except Exception as e:
+            print(f"❌ Search error: {e}")
+    return tasks
 
-def fly():
-    # CloakBrowser का जादू यहाँ से शुरू होता है
-    with sync_playwright() as p:
-        # 1. CloakBrowser का स्टील्थ क्रोमियम ब्राउज़र लॉन्च करो
-        browser = p.chromium.launch(
-            channel="chrome",  # 'chrome' चैनल CloakBrowser के स्टील्थ ब्राउज़र को लॉन्च करेगा
-            headless=False,    # CloakBrowser के साथ headless=False ज़्यादा सुरक्षित है
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1366, "height": 768},
-            locale="en-US",
-        )
-        page = context.new_page()
+# ========== AI TASK EVALUATOR ==========
+def evaluate_task(task):
+    """AI को टास्क का URL और टाइटल दो, वो बताएगा कि कर सकते हैं या नहीं"""
+    prompt = f"""Analyze this potential crypto earning task:
+URL: {task['url']}
+Title: {task['title']}
 
-        print("🔐 कुकीज़ सेट करके लॉगिन...")
-        page.goto("https://cointiply.com", timeout=30000)
-        page.context.add_cookies(cookies)
-        page.reload()
+Can an AI bot complete this task using ONLY browser automation (clicking, typing, visiting URLs)? 
+Reply in VALID JSON format exactly like this example:
+{{"can_do": true, "action": "click", "reason": "Claim button present"}}
+or
+{{"can_do": false, "reason": "Requires KYC or complex captcha"}}
+
+The "action" field can be "click", "form", or "other"."""
+    
+    response = ask_ai(prompt)
+    try:
+        # कभी-कभी AI के जवाब में एक्स्ट्रा टेक्स्ट होता है, JSON हिस्सा निकालो
+        json_start = response.find('{')
+        json_end = response.rfind('}') + 1
+        if json_start != -1 and json_end > json_start:
+            return json.loads(response[json_start:json_end])
+        else:
+            return {"can_do": False, "reason": "AI response not JSON"}
+    except:
+        return {"can_do": False, "reason": "Parse error"}
+
+# ========== TASK EXECUTOR (BROWSER AUTOMATION) ==========
+def execute_task(page, task_url, action):
+    """AI के बताए अनुसार बटन क्लिक करो या फ़ॉर्म भरो"""
+    print(f"  🛠️ Automating: {task_url}")
+    try:
+        page.goto(task_url, timeout=20000)
         page.wait_for_timeout(5000)
+        
+        if action == "click":
+            # हर तरह के बटन / लिंक ढूँढ़ो और क्लिक करो
+            clickable = page.query_selector_all("button, a.btn, input[type='submit'], a[href*='claim']")
+            if clickable:
+                for elem in clickable[:3]:
+                    try:
+                        elem.click()
+                        print("    ✅ Clicked something")
+                        page.wait_for_timeout(3000)
+                    except:
+                        pass
+            else:
+                print("    ❌ No clickable element found")
+                
+        elif action == "form":
+            # वॉलेट एड्रेस या ईमेल डालने की कोशिश करो
+            inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name='address']")
+            if inputs:
+                for inp in inputs[:2]:
+                    try:
+                        inp.fill(WALLET)
+                        print(f"    ✅ Filled: {WALLET[:10]}...")
+                        page.wait_for_timeout(2000)
+                    except:
+                        pass
+                # सबमिट बटन ढूँढ़ो
+                submit_btn = page.query_selector("button[type='submit'], input[type='submit']")
+                if submit_btn:
+                    try:
+                        submit_btn.click()
+                        print("    ✅ Submitted form")
+                        page.wait_for_timeout(3000)
+                    except:
+                        pass
+            else:
+                print("    ❌ No form inputs found")
+        else:
+            print("    ⚠️ Unknown action, just visiting")
+            
+    except Exception as e:
+        print(f"    ❌ Execution error: {e}")
 
-        ptc_ads(context, page)
+# ========== MAIN FUNCTION ==========
+def fly():
+    print("🌍 EarnAI Google Job Hunter शुरू!")
+    
+    # 1. Google से टास्क खोजो
+    tasks = google_job_search()
+    print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
+    
+    if not tasks:
+        print("कोई टास्क नहीं मिला, अगले रन तक अलविदा।")
+        return
+    
+    # 2. Playwright शुरू करो
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        page = browser.new_page()
+        
+        completed = 0
+        for i, task in enumerate(tasks):
+            print(f"[{i+1}/{len(tasks)}] {task['url'][:70]}...")
+            
+            # 3. AI से राय लो
+            decision = evaluate_task(task)
+            if decision.get("can_do"):
+                print(f"  ✅ AI: कर सकते हैं! ({decision.get('reason', '')})")
+                action = decision.get("action", "click")
+                # 4. अंजाम दो
+                execute_task(page, task["url"], action)
+                completed += 1
+            else:
+                print(f"  ❌ AI: छोड़ो ({decision.get('reason', '')})")
+            
+            time.sleep(3)  # हर टास्क के बीच थोड़ा आराम
+        
         browser.close()
+        print(f"\n🏁 मिशन ख़त्म! {completed}/{len(tasks)} टास्क पर कोशिश की गई।")
 
 if __name__ == "__main__":
     fly()
