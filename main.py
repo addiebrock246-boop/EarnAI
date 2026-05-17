@@ -4,34 +4,37 @@ import time
 import requests
 from playwright.sync_api import sync_playwright
 
-GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
-AI_URL = "https://models.inference.ai.azure.com/chat/completions"
-AI_HEADERS = {
-    "Authorization": f"Bearer {GITHUB_TOKEN}",
-    "Content-Type": "application/json"
-}
+AI_URL = "https://text.pollinations.ai/openai"
 
 def ask_ai(prompt):
     payload = {
+        "model": "openai/gpt-4o-mini",
         "messages": [
-            {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON."},
+            {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON, no other text."},
             {"role": "user", "content": prompt}
         ],
-        "model": "gpt-4o",
         "temperature": 0.7,
         "max_tokens": 250
     }
     for attempt in range(3):
         try:
-            resp = requests.post(AI_URL, headers=AI_HEADERS, json=payload, timeout=30)
+            resp = requests.post(AI_URL, json=payload, timeout=30)
             if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"].strip()
+                data = resp.json()
+                if "choices" in data:
+                    return data["choices"][0]["message"]["content"].strip()
+                elif "content" in data:
+                    return data["content"].strip()
+                else:
+                    print(f"   ⚠️ Unexpected: {str(data)[:100]}")
             else:
-                time.sleep(5)
-        except:
-            time.sleep(5)
+                print(f"   ⚠️ AI Error {resp.status_code}")
+            time.sleep(3)
+        except Exception as e:
+            print(f"   ❌ AI Exception: {e}")
+            time.sleep(3)
     return ""
 
 def serper_search():
@@ -86,7 +89,7 @@ or
 The "action" field can be "click", "form", or "other"."""
     
     response = ask_ai(prompt)
-    print(f"    🤖 AI RAW: {response[:200]}")  # डीबग लाइन
+    print(f"    🤖 AI RAW: {response[:200]}")
     try:
         json_start = response.find('{')
         json_end = response.rfind('}') + 1
@@ -129,7 +132,7 @@ def execute_task(page, task_url, action):
         print(f"    ❌ Execution error: {e}")
 
 def fly():
-    print("🌍 EarnAI Job Hunter (Serper + GitHub Models) शुरू!")
+    print("🌍 EarnAI Job Hunter (Serper + Pollinations.AI) शुरू!")
     tasks = serper_search()
     print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
     if not tasks:
