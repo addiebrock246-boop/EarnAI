@@ -1,28 +1,30 @@
-name: DuckDuckGo Test
+name: EarnAI Mega Faucet Hunter 10K
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'   # हर 6 घंटे पर अपने आप चलेगा
+  workflow_dispatch:          # तू जब चाहे मैन्युअली भी चला सकता है
 
 jobs:
-  test:
+  hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 600      # 10 घंटे (600 मिनट)
 
     steps:
-      - name: Checkout repo
+      - name: 📥 कोड चेकआउट करो
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: 🐍 Python सेटअप करो
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install tools
+      - name: 📦 ज़रूरी लाइब्रेरी इंस्टॉल करो
         run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
 
-      - name: Run Test
+      - name: 🚀 EarnAI लॉन्च करो (10K मोड)
         run: python main.py
         env:
           WALLETS_JSON: ${{ secrets.WALLETS_JSON }}
