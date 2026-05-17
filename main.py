@@ -1,41 +1,10 @@
 import os
-import json
 import time
 import requests
 from playwright.sync_api import sync_playwright
 
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
-AI_URL = "https://text.pollinations.ai/openai"
-
-def ask_ai(prompt):
-    payload = {
-        "model": "openai/gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON, no other text."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 250
-    }
-    for attempt in range(3):
-        try:
-            resp = requests.post(AI_URL, json=payload, timeout=30)
-            if resp.status_code == 200:
-                data = resp.json()
-                if "choices" in data:
-                    return data["choices"][0]["message"]["content"].strip()
-                elif "content" in data:
-                    return data["content"].strip()
-                else:
-                    print(f"   ⚠️ Unexpected: {str(data)[:100]}")
-            else:
-                print(f"   ⚠️ AI Error {resp.status_code}")
-            time.sleep(3)
-        except Exception as e:
-            print(f"   ❌ AI Exception: {e}")
-            time.sleep(3)
-    return ""
 
 def serper_search():
     queries = [
@@ -45,9 +14,9 @@ def serper_search():
         "simple crypto task complete earn"
     ]
     tasks = []
-    seen_urls = set()
+    seen = set()
     for q in queries:
-        print(f"🔍 Serper Search: '{q}'")
+        print(f"🔍 Serper: '{q}'")
         try:
             resp = requests.post(
                 "https://google.serper.dev/search",
@@ -58,102 +27,72 @@ def serper_search():
             if resp.status_code == 200:
                 data = resp.json()
                 items = data.get("organic", [])
-                print(f"   ↳ {len(items)} लिंक मिले")
+                print(f"   ↳ {len(items)} लिंक")
                 for item in items:
                     link = item.get("link")
-                    title = item.get("title", "")
-                    if link and link not in seen_urls:
-                        seen_urls.add(link)
-                        tasks.append({"url": link, "title": title[:80]})
+                    if link and link not in seen:
+                        seen.add(link)
+                        tasks.append(link)
             elif resp.status_code == 429:
-                print("   ⚠️ Serper quota खत्म, अगले महीने रीसेट।")
-                break
+                print("   ⚠️ Quota खत्म"); break
             else:
-                print(f"   ❌ Error: {resp.status_code}")
+                print(f"   ❌ {resp.status_code}")
             time.sleep(1)
         except Exception as e:
-            print(f"   ❌ Search error: {e}")
+            print(f"   ❌ {e}")
     return tasks
 
-def evaluate_task(task):
-    prompt = f"""Analyze this crypto task:
-URL: {task['url']}
-Title: {task['title']}
-
-Can an AI agent complete this using ONLY browser automation (clicking, typing, visiting pages)?
-Reply in VALID JSON format exactly like this example:
-{{"can_do": true, "action": "click", "reason": "Claim button present"}}
-or
-{{"can_do": false, "reason": "Requires KYC or complex captcha"}}
-
-The "action" field can be "click", "form", or "other"."""
-    
-    response = ask_ai(prompt)
-    print(f"    🤖 AI RAW: {response[:200]}")
+def try_click_form(page, url):
+    print(f"  🌐 {url[:70]}...")
     try:
-        json_start = response.find('{')
-        json_end = response.rfind('}') + 1
-        if json_start != -1 and json_end > json_start:
-            return json.loads(response[json_start:json_end])
-        else:
-            return {"can_do": False, "reason": "AI response not JSON"}
-    except:
-        return {"can_do": False, "reason": "parse error"}
-
-def execute_task(page, task_url, action):
-    print(f"  🛠️ Executing: {task_url}")
-    try:
-        page.goto(task_url, timeout=20000)
-        page.wait_for_timeout(5000)
-        if action == "click":
-            btns = page.query_selector_all("button, a.btn, input[type='submit']")
-            for btn in btns[:3]:
-                try:
-                    btn.click()
-                    print("    ✅ Clicked something")
-                    page.wait_for_timeout(2000)
-                except:
-                    pass
-        elif action == "form":
-            inputs = page.query_selector_all("input[type='text'], input[type='email']")
-            for inp in inputs[:2]:
-                try:
-                    inp.fill(WALLET)
-                    print(f"    ✅ Filled wallet")
-                    page.wait_for_timeout(2000)
-                except:
-                    pass
-            submit = page.query_selector("button[type='submit']")
-            if submit:
+        page.goto(url, timeout=15000)
+        page.wait_for_timeout(3000)
+        # हर तरह के बटन क्लिक करो
+        btns = page.query_selector_all("button, a.btn, input[type='submit']")
+        for btn in btns[:3]:
+            try:
+                btn.click()
+                print("    🖱️ Clicked")
+                page.wait_for_timeout(1000)
+            except:
+                pass
+        # हर तरह के इनपुट में वॉलेट भरो
+        inputs = page.query_selector_all("input[type='text'], input[type='email']")
+        for inp in inputs[:2]:
+            try:
+                inp.fill(WALLET)
+                print(f"    📝 Filled {WALLET[:6]}...")
+                page.wait_for_timeout(500)
+            except:
+                pass
+        # सबमिट बटन
+        submit = page.query_selector("button[type='submit'], input[type='submit']")
+        if submit:
+            try:
                 submit.click()
-                print("    ✅ Submitted form")
-                page.wait_for_timeout(3000)
+                print("    ✅ Submitted")
+                page.wait_for_timeout(2000)
+            except:
+                pass
     except Exception as e:
-        print(f"    ❌ Execution error: {e}")
+        print(f"    ❌ {e}")
 
 def fly():
-    print("🌍 EarnAI Job Hunter (Serper + Pollinations.AI) शुरू!")
-    tasks = serper_search()
-    print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
-    if not tasks:
-        print("कोई टास्क नहीं मिला।")
+    print("🌍 EarnAI - AI रहित स्पीड टेस्ट")
+    urls = serper_search()
+    print(f"\n🎯 {len(urls)} URLs मिले। केवल पहले 5 पर कोशिश करेंगे।\n")
+    if not urls:
         return
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         page = browser.new_page()
-        completed = 0
-        for i, task in enumerate(tasks):
-            print(f"[{i+1}/{len(tasks)}] {task['url'][:70]}...")
-            decision = evaluate_task(task)
-            if decision.get("can_do"):
-                print(f"  ✅ AI: कर सकते हैं ({decision.get('reason', '')})")
-                execute_task(page, task["url"], decision.get("action", "click"))
-                completed += 1
-            else:
-                print(f"  ❌ छोड़ा ({decision.get('reason', '')})")
+        for i, url in enumerate(urls[:5]):
+            print(f"[{i+1}/5]")
+            try_click_form(page, url)
             time.sleep(2)
         browser.close()
-        print(f"\n🏁 मिशन खत्म! {completed}/{len(tasks)} पर कोशिश।")
+        print("🏁 टेस्ट पूरा।")
 
 if __name__ == "__main__":
     fly()
