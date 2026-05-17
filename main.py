@@ -4,7 +4,7 @@ import time
 import requests
 from playwright.sync_api import sync_playwright
 
-# ========== CONFIG ==========
+# ========== CONFIGURATION ==========
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
@@ -14,6 +14,7 @@ AI_HEADERS = {
     "Content-Type": "application/json"
 }
 
+# ========== GITHUB MODELS AI ==========
 def ask_ai(prompt):
     payload = {
         "messages": [
@@ -35,8 +36,8 @@ def ask_ai(prompt):
             time.sleep(5)
     return ""
 
+# ========== SERPER GOOGLE SEARCH ==========
 def serper_search():
-    """Serper API से Google जैसे नतीजे लाओ — बिल्कुल फ्री!"""
     queries = [
         "crypto earn task no KYC 2026",
         "web3 bounty for AI agent",
@@ -65,6 +66,9 @@ def serper_search():
                     if link and link not in seen_urls:
                         seen_urls.add(link)
                         tasks.append({"url": link, "title": title[:80]})
+            elif resp.status_code == 429:
+                print("   ⚠️ Serper quota खत्म, अगले महीने रीसेट होगा।")
+                break
             else:
                 print(f"   ❌ Error: {resp.status_code}")
             time.sleep(1)
@@ -73,13 +77,14 @@ def serper_search():
 
     return tasks
 
+# ========== AI EVALUATOR ==========
 def evaluate_task(task):
     prompt = f"""Analyze this crypto task:
 URL: {task['url']}
 Title: {task['title']}
-Can an AI agent complete this using ONLY browser automation?
+Can an AI agent complete this using ONLY browser automation (clicking, typing, visiting pages)?
 Reply in JSON: {{"can_do": true/false, "action": "click"/"form"/"other", "reason": "short"}}"""
-
+    
     response = ask_ai(prompt)
     try:
         json_start = response.find('{')
@@ -90,6 +95,7 @@ Reply in JSON: {{"can_do": true/false, "action": "click"/"form"/"other", "reason
         pass
     return {"can_do": False, "reason": "parse error"}
 
+# ========== PLAYWRIGHT EXECUTOR ==========
 def execute_task(page, task_url, action):
     print(f"  🛠️ Executing: {task_url}")
     try:
@@ -100,7 +106,7 @@ def execute_task(page, task_url, action):
             for btn in btns[:3]:
                 try:
                     btn.click()
-                    print("    ✅ Clicked")
+                    print("    ✅ Clicked something")
                     page.wait_for_timeout(2000)
                 except:
                     pass
@@ -116,25 +122,26 @@ def execute_task(page, task_url, action):
             submit = page.query_selector("button[type='submit']")
             if submit:
                 submit.click()
-                print("    ✅ Submitted")
+                print("    ✅ Submitted form")
                 page.wait_for_timeout(3000)
     except Exception as e:
-        print(f"    ❌ Error: {e}")
+        print(f"    ❌ Execution error: {e}")
 
+# ========== MAIN ==========
 def fly():
-    print("🌍 EarnAI - Serper Job Hunter शुरू!")
+    print("🌍 EarnAI Job Hunter (Serper + GitHub Models) शुरू!")
     tasks = serper_search()
-    print(f"\n🎯 कुल {len(tasks)} tasks मिले\n")
+    print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
     if not tasks:
-        print("कोई टास्क नहीं मिला।")
+        print("कोई टास्क नहीं मिला, अगले रन तक अलविदा।")
         return
-
+    
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         page = browser.new_page()
         completed = 0
         for i, task in enumerate(tasks):
-            print(f"[{i+1}/{len(tasks)}] {task['url'][:60]}...")
+            print(f"[{i+1}/{len(tasks)}] {task['url'][:70]}...")
             decision = evaluate_task(task)
             if decision.get("can_do"):
                 print(f"  ✅ AI: कर सकते हैं ({decision.get('reason', '')})")
@@ -144,7 +151,7 @@ def fly():
                 print(f"  ❌ छोड़ा ({decision.get('reason', '')})")
             time.sleep(2)
         browser.close()
-        print(f"\n🏁 मिशन खत्म! {completed}/{len(tasks)} पर कोशिश।")
+        print(f"\n🏁 मिशन खत्म! {completed}/{len(tasks)} पर कोशिश की गई।")
 
 if __name__ == "__main__":
     fly()
