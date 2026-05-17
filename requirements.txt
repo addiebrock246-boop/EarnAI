@@ -1,4 +1,4 @@
-googlesearch-python
+duckduckgo_search
 playwright
 requests
 beautifulsoup4
