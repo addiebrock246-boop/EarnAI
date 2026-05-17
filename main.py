@@ -4,15 +4,13 @@ import time
 import requests
 from playwright.sync_api import sync_playwright
 
-# ========== CONFIG ==========
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
 
-# ========== AI: Groq (सबसे तेज़) → Gemini (बैकअप) → None ==========
 def ask_ai_fast(prompt):
-    # 1. Groq – रॉकेट की रफ़्तार, 5 सेकंड टाइमआउट
+    # Groq
     if GROQ_API_KEY:
         try:
             resp = requests.post(
@@ -25,8 +23,7 @@ def ask_ai_fast(prompt):
                 return resp.json()["choices"][0]["message"]["content"].strip()
         except:
             pass
-
-    # 2. Gemini – 5 सेकंड टाइमआउट
+    # Gemini
     if GEMINI_API_KEY:
         try:
             resp = requests.post(
@@ -41,7 +38,6 @@ def ask_ai_fast(prompt):
             pass
     return None
 
-# ========== Serper सर्च ==========
 def serper_search():
     queries = [
         "crypto earn task no KYC 2026",
@@ -75,7 +71,6 @@ def serper_search():
         time.sleep(1)
     return tasks
 
-# ========== AI से राय + Fallback ==========
 def evaluate_task_with_fallback(task):
     prompt = f"""Task URL: {task['url']}
 Task title: {task['title']}
@@ -89,13 +84,13 @@ If unsure, just say false."""
             json_end = ai_response.rfind('}') + 1
             if json_start != -1:
                 decision = json.loads(ai_response[json_start:json_end])
-                return decision.get("can_do", False), decision.get("action", "click")
+                action = decision.get("action", "click")
+                print(f"    🤖 AI: {decision.get('reason', '')} (फिर भी कोशिश करेंगे)")
+                return True, action
         except:
             pass
-    # Fallback: AI न बोले तो हर टास्क पर क्लिक + फ़ॉर्म
     return True, "click"
 
-# ========== एक्ज़ीक्यूटर ==========
 def execute_task(page, url, action):
     print(f"  🌐 {url[:60]}...")
     try:
