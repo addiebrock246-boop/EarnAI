@@ -6,17 +6,15 @@ from googlesearch import search
 from playwright.sync_api import sync_playwright
 
 # ========== CONFIGURATION ==========
-GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]          # GitHub Actions में अपने-आप मिलता है
-WALLET = os.environ.get("WALLET_ADDRESS", "0x...") # तुम्हारा crypto wallet
+GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
 AI_URL = "https://models.inference.ai.azure.com/chat/completions"
 AI_HEADERS = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
     "Content-Type": "application/json"
 }
 
-# ========== GITHUB MODELS AI CALL ==========
 def ask_ai(prompt):
-    """GitHub Models (GPT-4o) को सवाल भेजो और JSON जवाब लो"""
     payload = {
         "messages": [
             {"role": "system", "content": "You are a crypto task evaluator. Reply ONLY with valid JSON, no other text."},
@@ -37,11 +35,9 @@ def ask_ai(prompt):
         except Exception as e:
             print(f"❌ AI Exception: {e}")
             time.sleep(5)
-    return ""  # तीन बार फ़ेल होने पर खाली
+    return ""
 
-# ========== GOOGLE JOB SEARCH ==========
 def google_job_search():
-    """4 अलग-अलग कीवर्ड से Google सर्च करो और लिंक इकट्ठा करो"""
     queries = [
         "crypto earn task no KYC 2026",
         "web3 bounty for AI agent",
@@ -53,22 +49,20 @@ def google_job_search():
     for q in queries:
         print(f"🔍 Google Search: '{q}'")
         try:
-            # num=5 की जगह stop=5 करो (यही बदलाव है)
-            for url in search(q, stop=5, user_agent="Mozilla/5.0"):
+            # यहीं एक बदलाव – num_results=5
+            for url in search(q, num_results=5):
                 if url not in seen_urls:
                     seen_urls.add(url)
                     tasks.append({
                         "url": url,
-                        "title": url.split("//")[-1].split("/")[0]  # डोमेन नाम टाइटल की जगह
+                        "title": url.split("//")[-1].split("/")[0]
                     })
-                time.sleep(2)  # Google को गुस्सा न दिलाएँ
+                time.sleep(2)
         except Exception as e:
             print(f"❌ Search error: {e}")
     return tasks
 
-# ========== AI TASK EVALUATOR ==========
 def evaluate_task(task):
-    """AI को टास्क का URL और टाइटल दो, वो बताएगा कि कर सकते हैं या नहीं"""
     prompt = f"""Analyze this potential crypto earning task:
 URL: {task['url']}
 Title: {task['title']}
@@ -83,7 +77,6 @@ The "action" field can be "click", "form", or "other"."""
     
     response = ask_ai(prompt)
     try:
-        # कभी-कभी AI के जवाब में एक्स्ट्रा टेक्स्ट होता है, JSON हिस्सा निकालो
         json_start = response.find('{')
         json_end = response.rfind('}') + 1
         if json_start != -1 and json_end > json_start:
@@ -93,16 +86,13 @@ The "action" field can be "click", "form", or "other"."""
     except:
         return {"can_do": False, "reason": "Parse error"}
 
-# ========== TASK EXECUTOR (BROWSER AUTOMATION) ==========
 def execute_task(page, task_url, action):
-    """AI के बताए अनुसार बटन क्लिक करो या फ़ॉर्म भरो"""
     print(f"  🛠️ Automating: {task_url}")
     try:
         page.goto(task_url, timeout=20000)
         page.wait_for_timeout(5000)
         
         if action == "click":
-            # हर तरह के बटन / लिंक ढूँढ़ो और क्लिक करो
             clickable = page.query_selector_all("button, a.btn, input[type='submit'], a[href*='claim']")
             if clickable:
                 for elem in clickable[:3]:
@@ -116,7 +106,6 @@ def execute_task(page, task_url, action):
                 print("    ❌ No clickable element found")
                 
         elif action == "form":
-            # वॉलेट एड्रेस या ईमेल डालने की कोशिश करो
             inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name='address']")
             if inputs:
                 for inp in inputs[:2]:
@@ -126,7 +115,6 @@ def execute_task(page, task_url, action):
                         page.wait_for_timeout(2000)
                     except:
                         pass
-                # सबमिट बटन ढूँढ़ो
                 submit_btn = page.query_selector("button[type='submit'], input[type='submit']")
                 if submit_btn:
                     try:
@@ -143,40 +131,29 @@ def execute_task(page, task_url, action):
     except Exception as e:
         print(f"    ❌ Execution error: {e}")
 
-# ========== MAIN FUNCTION ==========
 def fly():
     print("🌍 EarnAI Google Job Hunter शुरू!")
-    
-    # 1. Google से टास्क खोजो
     tasks = google_job_search()
     print(f"\n🎯 कुल {len(tasks)} potential tasks मिले\n")
-    
     if not tasks:
         print("कोई टास्क नहीं मिला, अगले रन तक अलविदा।")
         return
     
-    # 2. Playwright शुरू करो
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         page = browser.new_page()
-        
         completed = 0
         for i, task in enumerate(tasks):
             print(f"[{i+1}/{len(tasks)}] {task['url'][:70]}...")
-            
-            # 3. AI से राय लो
             decision = evaluate_task(task)
             if decision.get("can_do"):
                 print(f"  ✅ AI: कर सकते हैं! ({decision.get('reason', '')})")
                 action = decision.get("action", "click")
-                # 4. अंजाम दो
                 execute_task(page, task["url"], action)
                 completed += 1
             else:
                 print(f"  ❌ AI: छोड़ो ({decision.get('reason', '')})")
-            
-            time.sleep(3)  # हर टास्क के बीच थोड़ा आराम
-        
+            time.sleep(3)
         browser.close()
         print(f"\n🏁 मिशन ख़त्म! {completed}/{len(tasks)} टास्क पर कोशिश की गई।")
 
