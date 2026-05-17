@@ -38,10 +38,14 @@ def ask_ai_fast(prompt):
 
 def serper_search():
     queries = [
-        "free crypto faucet claim instant payout 2026",
-        "web3 microtask earn crypto no KYC 2026",
-        "crypto airdrop quest complete and earn 2026",
-        "simple crypto task earn Satoshi 2026"
+        "layer3 quest crypto earn",      # Layer3 के क्वेस्ट
+        "zealy crypto quest",           # Zealy (पहले Crew3) के क्वेस्ट
+        "galxe campaign crypto earn",   # Galxe के कैंपेन
+        "dework crypto task",           # Dework के वेब3 टास्क
+        "questn crypto task earn",      # QuestN के टास्क
+        "web3 bounty task no KYC",      # वेब3 बाउंटी
+        "free crypto task platform 2026",
+        "simple crypto task complete earn Satoshi"
     ]
     tasks = []
     seen = set()
@@ -93,10 +97,10 @@ def execute_task(page, url, action):
     print(f"  🌐 {url[:70]}...")
     try:
         page.goto(url, timeout=15000)
-        page.wait_for_timeout(3000)  # पेज को लोड होने का पूरा समय दो
+        page.wait_for_timeout(3000)
 
-        # सबसे पहले, जाने-माने "कमाई वाले" बटन ढूँढो
-        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive"]
+        # असली कमाई वाले बटन ढूँढो
+        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate"]
         for word in keywords:
             btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
             if btn:
@@ -108,7 +112,7 @@ def execute_task(page, url, action):
                 except:
                     pass
 
-        # फिर वॉलेट या ईमेल फ़ील्ड ढूँढो
+        # वॉलेट या ईमेल फ़ील्ड भरो
         inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']")
         for inp in inputs[:2]:
             try:
@@ -131,22 +135,22 @@ def execute_task(page, url, action):
         print(f"    ❌ {e}")
 
 def fly():
-    print("🌍 EarnAI – Groq+Gemini+Fallback जॉब हंटर 🚀")
+    print("🌍 EarnAI – Direct Platform जॉब हंटर 🚀")
     tasks = serper_search()
-    print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 3 पर कोशिश।\n")
+    print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 5 पर कोशिश।\n")
     if not tasks:
         return
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         page = browser.new_page()
-        for i, task in enumerate(tasks[:3]):
-            print(f"[{i+1}/3]")
+        for i, task in enumerate(tasks[:5]):
+            print(f"[{i+1}/5]")
             can_do, action = evaluate_task_with_fallback(task)
             if can_do:
                 execute_task(page, task["url"], action)
             else:
                 print("  ❌ AI ने मना कर दिया।")
-            time.sleep(3)  # हर टास्क के बाद थोड़ा आराम
+            time.sleep(3)
         browser.close()
         print("🏁 मिशन पूरा।")
 
