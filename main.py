@@ -10,13 +10,13 @@ from playwright.sync_api import sync_playwright
 WALLETS_JSON = os.environ["WALLETS_JSON"]
 wallets = json.loads(WALLETS_JSON)
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")   # एक्शन में अपने-आप मिलता है
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")   # बैकअप AI
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-TEST_MODE = True          # टेस्ट मोड — सिर्फ 5 साइट
+TEST_MODE = True          # टेस्ट मोड — 5 फिक्स्ड + 10 DDG = 15 साइट
 AI_ENABLED = True         # AI प्री-चेक चालू
 
-# टेस्ट के लिए छोटी लिस्ट
+# छोटी फिक्स्ड लिस्ट (टेस्ट)
 FIXED_SITES = [
     "https://firefaucet.win",
     "https://cointiply.com/ptc-ads",
@@ -25,65 +25,75 @@ FIXED_SITES = [
     "https://free-solana.com"
 ]
 
-# ========== DDG (टेस्ट में बंद) ==========
-def ddg_search_new_sites(num_queries=0):
-    return []
+# ========== DDG SEARCH (टेस्ट में 10 साइट) ==========
+def ddg_search_new_sites(num_queries=5):
+    coins = list(wallets.keys())[:3]
+    actions = ["faucet","claim","earn","airdrop","giveaway"]
+    queries = []
+    for coin in coins:
+        for act in actions:
+            queries.append(f"free {coin} {act} wallet address instant 2026")
+    queries = list(set(queries))[:num_queries]
+    
+    tasks = []
+    seen = set()
+    with DDGS() as ddgs:
+        for q in queries:
+            try:
+                results = list(ddgs.text(q, max_results=2))
+                for r in results:
+                    href = r.get("href")
+                    if not href: continue
+                    skip = ["academy","support","blog","faq","youtube","reddit","medium","twitter","facebook","news"]
+                    if any(w in href for w in skip): continue
+                    if href not in seen:
+                        seen.add(href)
+                        tasks.append(href)
+                time.sleep(random.randint(2, 3))
+            except:
+                continue
+    return tasks[:10]  # सिर्फ 10 साइट
 
-# ========== GitHub Models AI (हमेशा फ्री) ==========
+# ========== GitHub Models AI ==========
 def ask_github_ai(prompt):
-    if not GITHUB_TOKEN:
-        return None
+    if not GITHUB_TOKEN: return None
     try:
         resp = requests.post(
             "https://models.inference.ai.azure.com/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GITHUB_TOKEN}",
-                "Content-Type": "application/json"
-            },
+            headers={"Authorization": f"Bearer {GITHUB_TOKEN}", "Content-Type": "application/json"},
             json={
                 "messages": [
                     {"role": "system", "content": "Reply with ONLY 'yes' or 'no'."},
                     {"role": "user", "content": prompt}
                 ],
-                "model": "gpt-4o",
-                "max_tokens": 5,
-                "temperature": 0.1
-            },
-            timeout=10
+                "model": "gpt-4o", "max_tokens": 5, "temperature": 0.1
+            }, timeout=10
         )
         if resp.status_code == 200:
-            data = resp.json()
-            return data["choices"][0]["message"]["content"].strip().lower()
-    except:
-        pass
+            return resp.json()["choices"][0]["message"]["content"].strip().lower()
+    except: pass
     return None
 
 # ========== Groq AI (बैकअप) ==========
 def ask_groq_ai(prompt):
-    if not GROQ_API_KEY:
-        return None
+    if not GROQ_API_KEY: return None
     try:
         resp = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
             json={
                 "messages": [{"role": "user", "content": prompt}],
-                "model": "llama-3.3-70b-versatile",
-                "max_tokens": 5,
-                "temperature": 0.1
-            },
-            timeout=5
+                "model": "llama-3.3-70b-versatile", "max_tokens": 5, "temperature": 0.1
+            }, timeout=5
         )
         if resp.status_code == 200:
-            data = resp.json()
-            return data["choices"][0]["message"]["content"].strip().lower()
-    except:
-        pass
+            return resp.json()["choices"][0]["message"]["content"].strip().lower()
+    except: pass
     return None
 
-# ========== AI प्री-चेक (GitHub → Groq) ==========
-def ai_pre_check(page_text, url):
-    prompt = f"""Analyze this webpage text and determine if a crypto faucet bot can claim rewards here by ONLY filling a wallet address.
+# ========== AI प्री-चेक ==========
+def ai_pre_check(page_text, url, ai_call_counter):
+    prompt = f"""Analyze this webpage text. Can a bot claim free crypto here by ONLY filling a wallet address?
 Page URL: {url}
 Page text (first 1200 chars): {page_text[:1200]}
 
@@ -96,16 +106,21 @@ Criteria for "yes":
 
 Reply with ONLY one word: "yes" or "no"."""
     
-    # 1. पहले GitHub Models (हमेशा फ्री)
+    # 1. GitHub Models
     answer = ask_github_ai(prompt)
     if answer is not None:
+        ai_call_counter[0] += 1
+        print(f"    🤖 GitHub AI → '{answer}'")
         return answer.startswith("yes")
     
     # 2. Groq बैकअप
     answer = ask_groq_ai(prompt)
     if answer is not None:
+        ai_call_counter[0] += 1
+        print(f"    🤖 Groq AI → '{answer}'")
         return answer.startswith("yes")
     
+    print("    🤖 AI उपलब्ध नहीं, कीवर्ड फ़िल्टर पर छोड़ रहे हैं")
     return None
 
 # ========== क्रिप्टो डिटेक्टर ==========
@@ -128,8 +143,7 @@ def handle_cookie_banner(page):
                 btn.click()
                 page.wait_for_timeout(500)
                 return True
-        except:
-            pass
+        except: pass
     return False
 
 # ========== ड्रॉपडाउन ==========
@@ -158,18 +172,19 @@ def try_claim(page, url, success_list, ai_call_counter):
 
         body_text = page.locator("body").inner_text(timeout=5000).lower()
 
-        # ===== 0. AI प्री-चेक (केवल 30% साइटों पर) =====
+        # ===== 0. AI प्री-चेक (30% साइटों पर) =====
         if AI_ENABLED and (GITHUB_TOKEN or GROQ_API_KEY) and random.random() < 0.3:
-            ai_verdict = ai_pre_check(body_text, url)
-            ai_call_counter[0] += 1
+            ai_verdict = ai_pre_check(body_text, url, ai_call_counter)
             if ai_verdict is False:
-                # AI ने साफ मना कर दिया → तुरंत छोड़ो
+                print(f"    ❌ AI ने मना किया — छोड़ रहे हैं")
                 return
-            # True या None → आगे बढ़ो
+            elif ai_verdict is True:
+                print(f"    ✅ AI ने हाँ कही — आगे बढ़ रहे हैं")
 
         # ===== 1. लॉगिन/KYC कीवर्ड फ़िल्टर =====
         login_keywords = ["login", "sign in", "register", "create account", "kyc", "verify identity"]
         if any(kw in body_text for kw in login_keywords):
+            print(f"    🚫 लॉगिन/KYC कीवर्ड मिला — छोड़ रहे हैं")
             return
 
         # ===== 2. क्रिप्टो पहचान और इनपुट भरो =====
@@ -191,14 +206,11 @@ def try_claim(page, url, success_list, ai_call_counter):
                     filled = True
                     page.wait_for_timeout(random.randint(300, 600))
                 break
-            except:
-                pass
+            except: pass
 
         # ===== 3. बटन दबाओ =====
         for word in ["claim","roll","earn","start","free","get","submit","send","reward","spin","mine","bonus"]:
-            btn = page.query_selector(
-                f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]"
-            )
+            btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
             if btn:
                 try:
                     btn.click()
@@ -207,11 +219,11 @@ def try_claim(page, url, success_list, ai_call_counter):
                     if any(w in content for w in ["success","credited","sent","thank","congrat"]) \
                        and not any(kw in content for kw in login_keywords):
                         success_list.append((url, crypto))
+                        print(f"    💰 सफलता! ({crypto})")
                     return
-                except:
-                    pass
+                except: pass
 
-        # ===== 4. अगर फॉर्म भरा था → सबमिट =====
+        # ===== 4. सबमिट =====
         if filled:
             submit = page.query_selector("button[type='submit'], input[type='submit']")
             if submit:
@@ -222,22 +234,25 @@ def try_claim(page, url, success_list, ai_call_counter):
                     if any(w in content for w in ["success","credited","sent","thank","congrat"]) \
                        and not any(kw in content for kw in login_keywords):
                         success_list.append((url, crypto))
-                except:
-                    pass
-    except:
-        pass
+                        print(f"    💰 सफलता! ({crypto})")
+                except: pass
+    except: pass
 
 # ========== MAIN ==========
 def fly():
-    print("🌍 EarnAI AI-Test (GitHub + Groq) 🚀")
-    print(f"🎯 Sites: {len(FIXED_SITES)}")
-    if GITHUB_TOKEN:
-        print("🔑 GitHub Models AI उपलब्ध")
-    if GROQ_API_KEY:
-        print("🔑 Groq AI बैकअप उपलब्ध")
-
+    print("🌍 EarnAI AI-Test (DDG + GitHub AI) 🚀")
+    
     all_urls = list(FIXED_SITES)
+    new_urls = ddg_search_new_sites()
+    all_urls.extend(new_urls)
+    all_urls = list(dict.fromkeys(all_urls))
     total = len(all_urls)
+    
+    print(f"📋 Fixed: {len(FIXED_SITES)} | 🆕 DDG: {len(new_urls)} | 🎯 Total: {total}\n")
+    if GITHUB_TOKEN: print("🔑 GitHub Models AI उपलब्ध")
+    if GROQ_API_KEY: print("🔑 Groq AI बैकअप उपलब्ध")
+    print()
+
     success_list = []
     ai_call_counter = [0]
 
@@ -246,7 +261,7 @@ def fly():
         page = browser.new_page()
 
         for i, url in enumerate(all_urls, 1):
-            print(f"[{i}/{total}] {url}")
+            print(f"[{i}/{total}] {url[:70]}...")
             try_claim(page, url, success_list, ai_call_counter)
             time.sleep(random.uniform(0.5, 1.0))
 
