@@ -1,63 +1,27 @@
 import os
-import json
 import time
+import random
 import requests
 from playwright.sync_api import sync_playwright
 
 SERPER_API_KEY = os.environ["SERPER_API_KEY"]
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 WALLET = os.environ.get("WALLET_ADDRESS", "0x...")
 
-def ask_ai_fast(prompt):
-    if GROQ_API_KEY:
-        try:
-            resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-                json={"messages": [{"role": "user", "content": prompt}], "model": "llama-3.3-70b-versatile", "max_tokens": 150},
-                timeout=5
-            )
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"].strip()
-        except:
-            pass
-    if GEMINI_API_KEY:
-        try:
-            resp = requests.post(
-                f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-                timeout=5
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except:
-            pass
-    return None
-
-def is_task_url(url):
-    """ऐसे URL हटाओ जो ब्लॉग/सपोर्ट/अकादमी के हों"""
-    skip_words = ["academy", "support", "blog", "faq", "about", "press", "career", "contact"]
-    for word in skip_words:
-        if f"/{word}/" in url or f"/{word}" in url:
-            return False
-    return True
-
+# ========== सर्च (सिर्फ सटीक, काम की साइटों के लिए) ==========
 def serper_search():
-    # सीधे कमाई वाले पेजों को टारगेट करें
     queries = [
-        "site:freecash.com offers earn",
-        "site:cointiply.com ptc",
-        "site:firefaucet.win faucet claim",
-        "site:jumptask.io task earn",
-        "site:superteam.fun bounty task",
+        "site:freecash.com earn offers",
+        "site:cointiply.com ptc ads",
+        "site:firefaucet.win claim faucet",
+        "site:jumptask.io microtask",
+        "site:superteam.fun bounty",
         "site:taskon.xyz quest earn",
         "site:galxe.com campaign reward",
         "site:layer3.xyz quest",
-        "site:cointiply.com surf ads",
-        "crypto microtask earn no KYC 2026",
-        "simple crypto task complete earn Satoshi"
+        "faucet crypto claim instant no KYC 2026",
+        "microtask earn crypto no KYC instant payout",
+        "crypto task complete earn Satoshi 2026",
+        "free crypto ptc ads 2026"
     ]
     tasks = []
     seen = set()
@@ -75,91 +39,91 @@ def serper_search():
                 print(f"   ↳ {len(items)} लिंक")
                 for item in items:
                     link = item.get("link")
-                    if link and link not in seen and is_task_url(link):
+                    # फ़ालतू की लिंक हटाओ (ब्लॉग, सपोर्ट, अकादमी)
+                    if not link:
+                        continue
+                    skip_words = ["academy", "support", "blog", "faq", "about", "press", "career", "contact"]
+                    if any(f"/{w}/" in link or f"/{w}" in link for w in skip_words):
+                        continue
+                    if "youtube.com" in link or "reddit.com" in link or "medium.com" in link:
+                        continue
+                    if link not in seen:
                         seen.add(link)
                         tasks.append({"url": link, "title": item.get("title", "")[:80]})
             elif resp.status_code == 429:
-                print("   ⚠️ Quota खत्म"); break
+                print("   ⚠️ Serper quota खत्म, अगले महीने रीसेट होगा।")
+                break
         except Exception as e:
             print(f"   ❌ {e}")
-        time.sleep(1)
+        time.sleep(random.uniform(0.5, 1.5))
     return tasks
 
-def evaluate_task_with_fallback(task):
-    prompt = f"""Task URL: {task['url']}
-Task title: {task['title']}
-Can an AI agent do this with only browser automation (click/type)?
-Reply with JSON: {{"can_do": true/false, "action": "click"/"form"/"other", "reason": "short"}}
-If unsure, just say false."""
-    ai_response = ask_ai_fast(prompt)
-    if ai_response:
-        try:
-            json_start = ai_response.find('{')
-            json_end = ai_response.rfind('}') + 1
-            if json_start != -1:
-                decision = json.loads(ai_response[json_start:json_end])
-                action = decision.get("action", "click")
-                print(f"    🤖 AI: {decision.get('reason', '')}")
-                return True, action
-        except:
-            pass
-    return True, "click"
-
-def execute_task(page, url, action):
+# ========== एक्ज़ीक्यूटर (अब बिना AI के, सीधा एक्शन) ==========
+def execute_task(page, url):
     print(f"  🌐 {url[:70]}...")
     try:
         page.goto(url, timeout=15000)
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(random.randint(2000, 4000))
 
-        keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate", "join", "complete"]
-        for word in keywords:
+        # सबसे पहले, जाने-माने बटन शब्द खोजो
+        action_words = ["claim", "earn", "roll", "start", "free", "get", "receive",
+                        "quest", "participate", "join", "complete", "surf", "view"]
+        for word in action_words:
             btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
             if btn:
                 try:
                     btn.click()
-                    print(f"    🖱️ '{word}' बटन क्लिक किया")
-                    page.wait_for_timeout(2000)
+                    print(f"    🖱️ '{word}' बटन दबाया")
+                    page.wait_for_timeout(random.randint(1500, 3000))
                     return
                 except:
                     pass
 
-        inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']")
-        for inp in inputs[:2]:
-            try:
-                inp.fill(WALLET)
-                print(f"    📝 {WALLET[:6]}... भरा")
-                page.wait_for_timeout(1000)
-            except:
-                pass
+        # अगर कोई बटन नहीं मिला, तो वॉलेट एड्रेस भरो
+        inputs = page.query_selector_all(
+            "input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']"
+        )
+        if inputs:
+            for inp in inputs[:2]:
+                try:
+                    inp.fill(WALLET)
+                    print(f"    📝 {WALLET[:6]}... भरा")
+                    page.wait_for_timeout(random.randint(800, 1500))
+                except:
+                    pass
+            # सबमिट बटन दबाओ
+            submit = page.query_selector("button[type='submit'], input[type='submit']")
+            if submit:
+                try:
+                    submit.click()
+                    print("    ✅ सबमिट किया")
+                    page.wait_for_timeout(random.randint(1500, 3000))
+                except:
+                    pass
 
-        submit = page.query_selector("button[type='submit'], input[type='submit']")
-        if submit:
-            try:
-                submit.click()
-                print("    ✅ सबमिट किया")
-                page.wait_for_timeout(2000)
-            except:
-                pass
     except Exception as e:
         print(f"    ❌ {e}")
 
 def fly():
-    print("🌍 EarnAI – Smart Filter जॉब हंटर 🚀")
+    print("🌍 EarnAI – आत्मनिर्भर जॉब हंटर 🚀")
     tasks = serper_search()
-    print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 5 पर कोशिश।\n")
+    print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 8 पर कोशिश करते हैं।\n")
     if not tasks:
+        print("कोई टास्क नहीं मिला।")
         return
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
         page = browser.new_page()
-        for i, task in enumerate(tasks[:5]):
-            print(f"[{i+1}/5]")
-            can_do, action = evaluate_task_with_fallback(task)
-            if can_do:
-                execute_task(page, task["url"], action)
-            else:
-                print("  ❌ AI ने मना कर दिया।")
-            time.sleep(3)
+
+        for i, task in enumerate(tasks[:8]):  # 8 साइट्स पर हाथ आज़माओ
+            print(f"[{i+1}/8]")
+            execute_task(page, task["url"])
+            time.sleep(random.randint(2, 4))  # साइट्स को शक न हो
+
         browser.close()
         print("🏁 मिशन पूरा।")
 
