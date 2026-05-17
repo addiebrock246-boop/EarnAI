@@ -1,14 +1,14 @@
-name: EarnAI Job Hunter
+name: EarnAI Mega Faucet Hunter
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # हर 6 घंटे में ऑटोमैटिक चलेगा
-  workflow_dispatch:          # मैन्युअल ट्रिगर का बटन
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 15      # 15 मिनट में खुद-ब-खुद रुकेगा
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repo
