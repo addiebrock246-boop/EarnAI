@@ -36,17 +36,26 @@ def ask_ai_fast(prompt):
             pass
     return None
 
+def is_task_url(url):
+    """ऐसे URL हटाओ जो ब्लॉग/सपोर्ट/अकादमी के हों"""
+    skip_words = ["academy", "support", "blog", "faq", "about", "press", "career", "contact"]
+    for word in skip_words:
+        if f"/{word}/" in url or f"/{word}" in url:
+            return False
+    return True
+
 def serper_search():
-    # सीधे सिंपल टास्क वाले प्लेटफ़ॉर्म को टारगेट करें
+    # सीधे कमाई वाले पेजों को टारगेट करें
     queries = [
-        "site:freecash.com earn crypto",
-        "site:cointiply.com ptc ads",
-        "site:firefaucet.win claim",
-        "site:jumptask.io task",
-        "site:superteam.fun bounty",
-        "site:taskon.xyz quest",
+        "site:freecash.com offers earn",
+        "site:cointiply.com ptc",
+        "site:firefaucet.win faucet claim",
+        "site:jumptask.io task earn",
+        "site:superteam.fun bounty task",
+        "site:taskon.xyz quest earn",
         "site:galxe.com campaign reward",
-        "site:layer3.xyz quest earn",
+        "site:layer3.xyz quest",
+        "site:cointiply.com surf ads",
         "crypto microtask earn no KYC 2026",
         "simple crypto task complete earn Satoshi"
     ]
@@ -66,8 +75,7 @@ def serper_search():
                 print(f"   ↳ {len(items)} लिंक")
                 for item in items:
                     link = item.get("link")
-                    # सिर्फ काम के लिंक लो (कोई youtube, reddit, blogspot नहीं)
-                    if link and link not in seen and "youtube.com" not in link and "reddit.com" not in link and "medium.com" not in link:
+                    if link and link not in seen and is_task_url(link):
                         seen.add(link)
                         tasks.append({"url": link, "title": item.get("title", "")[:80]})
             elif resp.status_code == 429:
@@ -103,7 +111,6 @@ def execute_task(page, url, action):
         page.goto(url, timeout=15000)
         page.wait_for_timeout(3000)
 
-        # स्मार्ट बटन सर्च (कमाई वाले शब्द)
         keywords = ["claim", "earn", "roll", "start", "free", "get", "receive", "quest", "participate", "join", "complete"]
         for word in keywords:
             btn = page.query_selector(f"button:has-text('{word}'), a:has-text('{word}'), input[value*='{word}' i]")
@@ -116,7 +123,6 @@ def execute_task(page, url, action):
                 except:
                     pass
 
-        # वॉलेट / ईमेल फ़ील्ड
         inputs = page.query_selector_all("input[type='text'], input[type='email'], input[name*='wallet'], input[name*='address']")
         for inp in inputs[:2]:
             try:
@@ -126,7 +132,6 @@ def execute_task(page, url, action):
             except:
                 pass
 
-        # सबमिट बटन
         submit = page.query_selector("button[type='submit'], input[type='submit']")
         if submit:
             try:
@@ -139,7 +144,7 @@ def execute_task(page, url, action):
         print(f"    ❌ {e}")
 
 def fly():
-    print("🌍 EarnAI – Hyper-Targeted जॉब हंटर 🚀")
+    print("🌍 EarnAI – Smart Filter जॉब हंटर 🚀")
     tasks = serper_search()
     print(f"\n🎯 {len(tasks)} टास्क मिले। पहले 5 पर कोशिश।\n")
     if not tasks:
