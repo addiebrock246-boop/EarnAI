@@ -13,68 +13,89 @@ TEST_MODE     = True
 AI_ENABLED    = True
 MAX_AI_CALLS  = 15
 
-# ========== NO‑LOGIN FAUCETS ==========
+# ========== 100% NO‑LOGIN FAUCETS (टेस्ट के लिए छोटी लिस्ट) ==========
 FIXED_SITES = [
-    "https://sepolia-faucet.pk910.de",
-    "https://solfaucet.com",
-    "https://faucet.solana.com",
-    "https://faucet.polygon.technology",
-    "https://faucet.quicknode.com",
+    # ── Sepolia ETH ──
+    "https://sepolia-faucet.pk910.de",        # PoW माइनिंग, बस एड्रेस डालो
+    "https://www.alchemy.com/faucets/ethereum-sepolia",
+    # ── Solana ──
+    "https://solfaucet.com",                  # SOL डेवनेट
+    "https://faucet.solana.com",              # Solana डेवनेट
+    # ── Polygon ──
+    "https://faucet.polygon.technology",      # MATIC टेस्टनेट
+    # ── QuickNode Multi-chain ──
+    "https://faucet.quicknode.com",           # बस एड्रेस डालो
+    # ── अन्य टेस्टनेट ──
+    "https://faucet.avax.network",            # AVAX टेस्टनेट
+    "https://sui.io/faucet",                 # SUI टेस्टनेट
+    "https://faucet.arbitrum.io",            # ARB टेस्टनेट
 ]
 
-# ========== DDG SEARCH ==========
+# ========== DDG SEARCH (सख्त No‑Login कीवर्ड) ==========
 def ddg_search_new_sites(num_queries=3):
     coins = list(wallets.keys())[:3]
-    actions = ["faucet no login no registration","claim free without account","earn instantly wallet address only"]
+    # कीवर्ड में "no login", "no signup", "no captcha" ज़रूर रखो
+    actions = [
+        "faucet no login no signup no captcha wallet address",
+        "free claim without account instant",
+        "no registration no kyc faucet 2026",
+    ]
     queries = []
     for coin in coins:
         for act in actions:
-            queries.append(f"{coin} {act} 2026")
+            queries.append(f"{coin} {act}")
     queries = list(set(queries))[:num_queries]
     tasks = []; seen = set()
     with DDGS() as ddgs:
         for q in queries:
             try:
-                for r in ddgs.text(q, max_results=2):
+                for r in ddgs.text(q, max_results=3):
                     href = r.get("href")
                     if not href: continue
-                    if any(w in href for w in ["academy","support","blog","faq","youtube","reddit","medium"]): continue
-                    if href not in seen: seen.add(href); tasks.append(href)
+                    # फ़ालतू साइटों को सख्ती से हटाओ
+                    skip = ["academy","support","blog","faq","youtube","reddit","medium",
+                            "twitter","facebook","news","telegram","t.me"]
+                    if any(w in href for w in skip): continue
+                    if href not in seen:
+                        seen.add(href); tasks.append(href)
                 time.sleep(random.randint(2,3))
             except: pass
     return tasks[:5]
 
-# ========== AI CALL (GitHub → Groq) ==========
+# ========== AI CALL ==========
 def call_ai(prompt, max_tokens=200):
     if GITHUB_TOKEN:
         try:
             resp = requests.post(
                 "https://models.inference.ai.azure.com/chat/completions",
                 headers={"Authorization":f"Bearer {GITHUB_TOKEN}","Content-Type":"application/json"},
-                json={"messages":[{"role":"user","content":prompt}],"model":"gpt-4o","max_tokens":max_tokens,"temperature":0.1},
-                timeout=10
+                json={"messages":[{"role":"user","content":prompt}],"model":"gpt-4o",
+                      "max_tokens":max_tokens,"temperature":0.1}, timeout=10
             )
-            if resp.status_code==200: return resp.json()["choices"][0]["message"]["content"].strip()
+            if resp.status_code==200:
+                return resp.json()["choices"][0]["message"]["content"].strip()
         except: pass
     if GROQ_API_KEY:
         try:
             resp = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization":f"Bearer {GROQ_API_KEY}","Content-Type":"application/json"},
-                json={"messages":[{"role":"user","content":prompt}],"model":"llama-3.3-70b-versatile","max_tokens":max_tokens,"temperature":0.1},
-                timeout=5
+                json={"messages":[{"role":"user","content":prompt}],"model":"llama-3.3-70b-versatile",
+                      "max_tokens":max_tokens,"temperature":0.1}, timeout=5
             )
-            if resp.status_code==200: return resp.json()["choices"][0]["message"]["content"].strip()
+            if resp.status_code==200:
+                return resp.json()["choices"][0]["message"]["content"].strip()
         except: pass
     return None
 
 def ai_pre_check(text, url):
-    prompt = f"""Analyze this webpage and decide if a bot can claim free crypto by ONLY entering a wallet address (NO login/signup/KYC).
+    prompt = f"""Analyze this webpage. Can a bot claim free crypto by ONLY entering a wallet address (NO login/signup/KYC/captcha)?
 URL: {url}
 Text (first 1200 chars): {text[:1200]}
-
-Reply ONLY with valid JSON: {{"can_claim":true/false,"crypto":"BTC/ETH/USDT/SOL/DOGE/BNB/other","wallet_selector":"CSS selector","button_text":"exact button text"}}
-If login/KYC/captcha or just a blog, set can_claim=false."""
+Reply ONLY with valid JSON:
+{{"can_claim":true/false,"crypto":"BTC/ETH/USDT/SOL/DOGE/BNB/other",
+  "wallet_selector":"CSS selector","button_text":"exact button text"}}
+If login/KYC/captcha or blog, set can_claim=false."""
     resp = call_ai(prompt, 150)
     if resp:
         try: return json.loads(resp)
@@ -82,10 +103,10 @@ If login/KYC/captcha or just a blog, set can_claim=false."""
     return None
 
 def ai_post_check(text, url):
-    prompt = f"""Did the bot successfully claim free crypto on this page? URL: {url}
+    prompt = f"""Was the claim successful? URL: {url}
 Text (first 1200 chars): {text[:1200]}
-Indicators: transaction hash, "reward sent", "coins added", "claim successful", balance updated.
-Reply with ONLY one word: "true" or "false"."""
+Look for: transaction hash, "reward sent", "coins added", "claim successful", balance updated.
+Reply ONLY with "true" or "false"."""
     resp = call_ai(prompt, 10)
     if resp: return resp.strip().lower()=="true"
     return None
@@ -107,12 +128,11 @@ def handle_dropdown(page, crypto):
                 o.select_option(); return
         if opts: opts[0].select_option()
 
-def strict_keywords_check(content, url):
-    """अगर AI न हो तो बैकअप सफलता जाँच"""
+def strict_success_check(content, url):
     c=content.lower()
     if any(k in c for k in ["login","sign in","register","kyc"]): return False
     strong=["transaction hash","tx id","reward sent","payment successful",
-            "coins added","credited to your wallet","claim successful","faucet pay"]
+            "coins added","credited to your wallet","claim successful"]
     return any(s in c for s in strong) or any(p in url.lower() for p in ["/success","/thank","/dashboard"])
 
 # ========== SITE VISITOR ==========
@@ -123,11 +143,11 @@ def try_claim(page, url, success_list, ai_counter):
         handle_cookie(page); page.wait_for_timeout(300)
         body=page.locator("body").inner_text(timeout=5000).lower()
 
-        # कीवर्ड फ़िल्टर
+        # 1. कीवर्ड फ़िल्टर
         if any(k in body for k in ["login","sign in","register","create account","kyc","verify identity"]):
             print(f"    🚫 लॉगिन/KYC → छोड़ा"); return
 
-        # AI प्री-चेक
+        # 2. AI प्री-चेक
         ai_decision=None; crypto_used=None
         if AI_ENABLED and ai_counter[0]<MAX_AI_CALLS:
             ai_decision=ai_pre_check(body,url); ai_counter[0]+=1
@@ -136,7 +156,7 @@ def try_claim(page, url, success_list, ai_counter):
             elif ai_decision and ai_decision.get("can_claim"):
                 print(f"    🧠 AI → कर सकते हैं")
 
-        # ---- क्लेम एक्शन (AI या फ़ॉलबैक) ----
+        # 3. क्लेम एक्शन
         wallet=None; claimed=False
         if ai_decision and ai_decision.get("can_claim"):
             crypto=ai_decision.get("crypto","BTC")
@@ -156,7 +176,7 @@ def try_claim(page, url, success_list, ai_counter):
                 page.wait_for_timeout(random.randint(1500,2500))
                 claimed=True
         else:
-            # फ़ॉलबैक – पुराना तरीका
+            # फ़ॉलबैक
             crypto="BTC"
             for c in ["SOL","USDT","BNB","DOGE","ETH","BTC"]:
                 if c.lower() in body: crypto=c; break
@@ -188,10 +208,9 @@ def try_claim(page, url, success_list, ai_counter):
                     page.wait_for_timeout(random.randint(600,1200))
                     claimed=True
 
-        # ---- सफलता जाँच ----
+        # 4. सफलता जाँच
         if claimed and wallet:
             post_text=page.locator("body").inner_text(timeout=5000)
-            # AI पोस्ट-चेक (अगर कोटा बचा हो)
             if AI_ENABLED and ai_counter[0]<MAX_AI_CALLS:
                 if ai_post_check(post_text, url):
                     success_list.append((url, crypto_used))
@@ -200,8 +219,7 @@ def try_claim(page, url, success_list, ai_counter):
                 else:
                     print(f"    ❌ AI पुष्टि: कोई कमाई नहीं")
             else:
-                # बैकअप सख्त जाँच
-                if strict_keywords_check(post_text, url):
+                if strict_success_check(post_text, url):
                     success_list.append((url, crypto_used))
                     print(f"    💰 बैकअप पुष्टि: कमाई हुई ({crypto_used})")
     except Exception as e:
@@ -209,7 +227,7 @@ def try_claim(page, url, success_list, ai_counter):
 
 # ========== MAIN ==========
 def fly():
-    print("🌍 Fully AI + फ़ॉलबैक बॉट 🚀")
+    print("🌍 No‑Login Faucet Hunter 🚀")
     all_urls=list(FIXED_SITES)
     new=ddg_search_new_sites(); all_urls.extend(new)
     all_urls=list(dict.fromkeys(all_urls))
@@ -229,7 +247,6 @@ def fly():
     print(f"✅ पुष्ट सफलता: {len(success)}")
     for u,c in success: print(f"   + {u[:60]}... ({c})")
     print(f"🧠 AI कॉल: {ai_cnt[0]} बार")
-    print("💰 Trust Wallet देखो – असली कमाई!")
 
 if __name__=="__main__":
     fly()
