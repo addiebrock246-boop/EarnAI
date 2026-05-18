@@ -9,7 +9,7 @@ wallets       = json.loads(WALLETS_JSON)
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
 GROQ_API_KEY  = os.environ.get("GROQ_API_KEY", "")
 
-TEST_MODE     = False                # ✅ पूरा मोड — 10,000+ साइट/दिन
+TEST_MODE     = False                # ✅ FULL MODE (10,000+ साइट/दिन)
 AI_ENABLED    = True                 # AI का उपयोग करें
 MAX_AI_CALLS_PER_RUN = 30           # हर रन में AI कॉल की अधिकतम संख्या
 
@@ -75,7 +75,7 @@ FIXED_SITES = [
     "https://faucet.mantle.xyz", "https://faucet.celo.org",
 ]
 
-# ========== DuckDuckGo SEARCH — अनलिमिटेड नई साइटें ==========
+# ========== DuckDuckGo SEARCH ==========
 def ddg_search_new_sites(num_queries=500):
     if TEST_MODE:
         num_queries = 10
@@ -117,9 +117,8 @@ def ddg_search_new_sites(num_queries=500):
                 continue
     return tasks
 
-# ========== AI CALL — तीन-स्तरीय सुरक्षा कवच ==========
+# ========== AI CALL (Three‑tier) ==========
 def call_ai(prompt, max_tokens=200):
-    """Groq → GitHub Models → Pollinations.AI (कभी बंद नहीं)"""
     # 1. Groq
     if GROQ_API_KEY:
         try:
@@ -158,7 +157,7 @@ def call_ai(prompt, max_tokens=200):
         except:
             pass
 
-    # 3. Pollinations.AI — हमेशा फ्री, बिना API Key
+    # 3. Pollinations.AI (अंतिम आसरा)
     try:
         resp = requests.get(
             "https://text.pollinations.ai/openai",
@@ -172,7 +171,7 @@ def call_ai(prompt, max_tokens=200):
 
     return None
 
-# ========== AI PRE-CHECK ==========
+# ========== AI PRE‑CHECK ==========
 def ai_pre_check(text, url):
     prompt = f"""You are a crypto faucet bot. Analyze this webpage and decide if you can claim free crypto by ONLY entering a wallet address (NO login/signup/KYC/captcha).
 Page URL: {url}
@@ -187,15 +186,32 @@ If login/KYC/captcha required, or page is just a blog/news, set can_claim=false.
         except: pass
     return None
 
-# ========== AI POST-CHECK ==========
-def ai_post_check(text, url):
-    prompt = f"""Did the bot successfully claim free crypto on this page? URL: {url}
-Page text (first 1200 chars): {text[:1200]}
-Strong indicators: transaction hash, "reward sent", "coins added", "claim successful", "credited to your wallet", balance updated.
-Reply ONLY with "true" or "false"."""
+# ========== AI POST‑CHECK (updated) ==========
+def ai_verify_success(text_after, url):
+    prompt = f"""You are a crypto faucet bot. You have just attempted to claim free crypto on the following page. Analyze the page text and decide if the claim was SUCCESSFUL (reward was actually sent/credited to a personal wallet address).
+
+Page URL: {url}
+Page text (first 1500 chars): {text_after[:1500]}
+
+A claim is NOT successful if:
+- The page is a blog, news article, or general info site with no claim form
+- Login / sign up / KYC / captcha is required
+- Error messages like "403 Forbidden", "404 Not Found", "Blocked", "Something went wrong"
+- The page just shows generic info without any personal claim confirmation
+- The site asks to CONNECT A WALLET or SCAM
+- The text only mentions "success" in a generic context (e.g., "our project was a success")
+
+A claim is ONLY successful if at least one of these STRONG indicators is present:
+- Transaction hash / TX ID / confirmation code is shown
+- Message like "Reward sent", "Payment successful", "Coins added", "Claim successful", "Successfully sent"
+- Balance updated on screen
+- Explicit confirmation that the reward was credited to the provided wallet address
+
+Reply with ONLY one word: "true" or "false"."""
     resp = call_ai(prompt, 10)
-    if resp: return resp.strip().lower() == "true"
-    return None
+    if resp:
+        return resp.strip().lower() == "true"
+    return False
 
 # ========== HELPERS ==========
 def handle_cookie(page):
@@ -219,13 +235,22 @@ def handle_dropdown(page, crypto):
         if opts:
             opts[0].select_option()
 
+# ========== STRICT SUCCESS CHECK (updated) ==========
 def strict_success_check(content, url):
     c = content.lower()
-    if any(k in c for k in ["login","sign in","register","kyc"]):
+    # पहले नकारात्मक शब्दों की जाँच
+    negative_kw = ["404", "not found", "error", "blocked", "forbidden",
+                   "something went wrong", "login", "sign in", "register",
+                   "kyc", "connect wallet"]
+    if any(k in c for k in negative_kw):
         return False
-    strong = ["transaction hash","tx id","reward sent","payment successful",
-              "coins added","credited to your wallet","claim successful"]
-    return any(s in c for s in strong) or any(p in url.lower() for p in ["/success","/thank","/dashboard"])
+    
+    # फिर सकारात्मक ठोस शब्द
+    strong = ["transaction hash", "tx id", "reward sent", "payment successful",
+              "coins added", "credited to your wallet", "claim successful", "faucet pay"]
+    url_success_paths = ["/success", "/thank", "/dashboard"]
+    
+    return any(s in c for s in strong) or any(p in url.lower() for p in url_success_paths)
 
 # ========== SITE VISITOR ==========
 def try_claim(page, url, success_list, ai_counter):
@@ -306,13 +331,15 @@ def try_claim(page, url, success_list, ai_counter):
                     page.wait_for_timeout(random.randint(600, 1200))
                     claimed = True
 
-        # 4. सफलता जाँच
+        # 4. सफलता जाँच (updated)
         if claimed and wallet:
             post_text = page.locator("body").inner_text(timeout=5000)
+            # पहले AI पोस्ट-चेक (अगर कोटा बचा हो और AI से निर्णय लिया गया था)
             if AI_ENABLED and ai_counter[0] < MAX_AI_CALLS_PER_RUN and ai_decision:
-                if ai_post_check(post_text, url):
+                if ai_verify_success(post_text, url):
                     success_list.append((url, crypto_used))
                     ai_counter[0] += 1
+            # नहीं तो सख्त कीवर्ड चेक
             else:
                 if strict_success_check(post_text, url):
                     success_list.append((url, crypto_used))
