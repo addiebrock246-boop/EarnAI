@@ -11,46 +11,56 @@ GROQ_API_KEY  = os.environ.get("GROQ_API_KEY", "")
 
 TEST_MODE     = False                # FULL MODE (10,000+ साइट/दिन)
 AI_ENABLED    = True
-MAX_AI_CALLS_PER_RUN = 30           # हर रन में 30 AI कॉल
+MAX_AI_CALLS_PER_RUN = 30
 
 # ========== 300+ NO‑LOGIN / TASK / TESTNET SITES ==========
 FIXED_SITES = [
-    # ... (तेरी पूरी लिस्ट पहले जैसी ही रखो, मैं यहाँ छोटा कर रहा हूँ)
+    # ── MULTI‑FAUCET ──
     "https://firefaucet.win", "https://faucetcrypto.com", "https://allcoins.pw",
     "https://cointiply.com/ptc-ads", "https://rollercoin.com", "https://dutchycorp.space",
     "https://freefaucet.io", "https://claimfreecoins.io", "https://coindiversity.io",
     "https://fastcoin.ga", "https://autofaucet.org", "https://viperfaucet.com",
     "https://faucetpay.io", "https://faucethub.io",
+    # ── BTC ──
     "https://freebitco.in", "https://satoshihero.com", "https://btcclicks.com",
     "https://coinpayu.com", "https://adbtc.top", "https://bitcoinker.com",
     "https://moonbit.co.in", "https://moonbitcoin.xyz", "https://bitfun.co",
     "https://cryptowin.io", "https://earncrypto.com/faucet", "https://freebitcoin.io",
+    # ── ETH & USDT ──
     "https://free-usdt.com", "https://free-tether.com", "https://freeeth.io",
     "https://ethereum-faucet.org", "https://fauceth.io",
     "https://sepolia-faucet.pk910.de", "https://www.alchemy.com/faucets/ethereum-sepolia",
+    # ── BNB ──
     "https://free-bnb.com", "https://freebnbco.in", "https://stakely.io/en/faucet/binance-bnb",
     "https://testnet.bnbchain.org/faucet-smart",
+    # ── SOL ──
     "https://free-solana.com", "https://faucet.solana.com", "https://solfaucet.com",
+    # ── DOGE ──
     "https://freedogecoin.net", "https://dogefaucet.com", "https://free-doge.com",
     "https://moondogecoin.com", "https://freedoge.co.in",
+    # ── OTHER COINS ──
     "https://freecardano.com", "https://free-litecoin.com", "https://free-tron.com",
     "https://free-zcash.com", "https://free-dash.com", "https://moonliteco.in",
     "https://moondash.co.in", "https://free-ripple.com", "https://free-chainlink.com",
     "https://free-matic.com", "https://free-polkadot.com", "https://free-avalanche.com",
     "https://free-near.com", "https://free-aptos.com", "https://free-sui.com",
     "https://free-arbitrum.com", "https://free-optimism.com", "https://free-base.com",
+    # ── TASK / QUEST PLATFORMS ──
     "https://app.layer3.xyz/quests", "https://zealy.io/c/explore",
     "https://galxe.com/explore", "https://app.dework.xyz/explore",
     "https://questn.com/explore", "https://taskon.xyz/quests",
     "https://superteam.fun/earn", "https://www.rabbithole.gg/quests",
     "https://kleoverse.com/explore", "https://earn.superteam.fun",
     "https://crew3.xyz", "https://intract.io",
+    # ── AIRDROP / GIVEAWAY ──
     "https://onepapel.com", "https://warsonsol.com", "https://www.binance.com/en/activity",
     "https://coinmarketcap.com/airdrop/", "https://airdropalert.com",
     "https://airdrops.io", "https://www.airdropking.io",
+    # ── MICROTASK ──
     "https://jumptask.io", "https://earncrypto.com", "https://freecash.com/earn",
     "https://getpaidto.click", "https://timebucks.com", "https://picoworkers.com",
     "https://microworkers.com", "https://rapidworkers.com",
+    # ── TESTNET FAUCETS ──
     "https://docs.wormhole.com/wormhole/quick-start/testnet-faucets",
     "https://chainstack.com/faucets", "https://www.alchemy.com/faucets",
     "https://infura.io/faucet", "https://quicknode.com/faucet",
@@ -199,14 +209,14 @@ def try_claim(page, url, success_list, ai_counter):
         handle_cookie(page)
         page.wait_for_timeout(300)
 
-        visited_urls = {url}          # पहले से विज़िट किए हुए URL
-        max_pages = 5                 # अधिकतम 5 पेजों तक फ़ॉलो करें
+        visited_urls = {url}
+        max_pages = 5
         pages_visited = 0
         claimed = False
         crypto_used = None
         wallet = None
 
-        # AI प्री-चेक सिर्फ पहले पेज पर
+        # AI pre-check only on first page
         ai_decision = None
         body = page.locator("body").inner_text(timeout=5000).lower()
         if any(k in body for k in ["login","sign in","register","create account","kyc","verify identity"]):
@@ -217,7 +227,6 @@ def try_claim(page, url, success_list, ai_counter):
             ai_counter[0] += 1
             if ai_decision and not ai_decision.get("can_claim"):
                 return
-            # अगर AI ने हाँ कही तो उसके बताए अनुसार क्लेम करो
             if ai_decision and ai_decision.get("can_claim"):
                 crypto = ai_decision.get("crypto", "BTC")
                 wallet = wallets.get(crypto, wallets.get("BTC", ""))
@@ -237,15 +246,12 @@ def try_claim(page, url, success_list, ai_counter):
                     page.wait_for_timeout(random.randint(1500, 2500))
                     claimed = True
 
-        # अगर AI ने क्लेम नहीं किया (या फ़ॉलबैक की ज़रूरत है) तो फ़ॉलबैक लूप
         if not claimed:
-            # फ़ॉलबैक पहले पेज पर ही शुरू करो
             current_url = url
             while pages_visited < max_pages and current_url in visited_urls and not claimed:
-                # हर नए पेज पर बिना AI के कोशिश करो
                 body = page.locator("body").inner_text(timeout=5000).lower()
                 if any(k in body for k in ["login","sign in","register","kyc"]):
-                    return  # लॉगिन आ गया तो छोड़ो
+                    return
 
                 crypto = detect_crypto_type(body)
                 wallet = wallets.get(crypto, wallets.get("BTC", ""))
@@ -253,7 +259,6 @@ def try_claim(page, url, success_list, ai_counter):
                     crypto_used = crypto
                 handle_dropdown(page, crypto)
 
-                # एड्रेस भरो
                 inputs = page.query_selector_all(
                     "input[type='text'],input[type='email'],input[name*='address'],input[name*='wallet']")
                 filled = False
@@ -268,7 +273,6 @@ def try_claim(page, url, success_list, ai_counter):
                         break
                     except: pass
 
-                # बटन दबाओ
                 btn_clicked = False
                 for w in ["claim","roll","earn","start","free","get","submit","send","reward","spin","mine","bonus"]:
                     btn = page.query_selector(f"button:has-text('{w}'),a:has-text('{w}'),input[value*='{w}' i]")
@@ -278,21 +282,18 @@ def try_claim(page, url, success_list, ai_counter):
                             btn.click()
                             page.wait_for_timeout(random.randint(800, 1500))
                             btn_clicked = True
-                            # अगर URL बदल गया तो नए पेज पर चले जाओ, नहीं तो यहीं रुक जाओ
                             after_url = page.url
                             if after_url != before_url and after_url not in visited_urls:
                                 visited_urls.add(after_url)
                                 current_url = after_url
                                 pages_visited += 1
-                                claimed = False  # नए पेज पर फिर से कोशिश होगी
+                                claimed = False
                                 break
                             else:
-                                # URL नहीं बदला या पहले से देखा → यहीं रुक जाओ
                                 claimed = True
                                 break
                         except: pass
                 if not btn_clicked:
-                    # कोई बटन नहीं दबा, सबमिट करके देखो
                     submit = page.query_selector("button[type='submit'],input[type='submit']")
                     if submit:
                         try:
@@ -309,17 +310,13 @@ def try_claim(page, url, success_list, ai_counter):
                                 claimed = True
                         except: pass
                     else:
-                        # कुछ भी नहीं कर पाए → अगला पेज नहीं है, रुक जाओ
-                        claimed = filled  # अगर एड्रेस भरा था तो शायद काम हो गया
+                        claimed = filled
                         break
-
-                # अगर बटन दबाने से पेज नहीं बदला तो लूप से बाहर निकल जाओ
                 if claimed:
                     break
                 if pages_visited >= max_pages:
                     break
 
-        # अंतिम सफलता जाँच
         if claimed and wallet:
             post_text = page.locator("body").inner_text(timeout=5000)
             if AI_ENABLED and ai_counter[0] < MAX_AI_CALLS_PER_RUN and ai_decision:
